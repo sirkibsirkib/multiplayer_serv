@@ -67,9 +67,10 @@ fn main() {
 
             network::spawn_coupler(server_in, server_out, client_in, client_out);
             thread::spawn(move || {
-                engine::client_engine(client_in2, client_out2, network::SINGLE_PLAYER_CID)
+                engine::server_engine(config.extract_state(), server_in2, server_out2);
             });
-            engine::server_engine(config.extract_state(), server_in2, server_out2);
+            //main thread == client thread. So if piston exists, everything exits
+            engine::client_engine(client_in2, client_out2, network::SINGLE_PLAYER_CID)
         }
     }
 }
