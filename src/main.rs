@@ -4,6 +4,11 @@ use std::thread;
 #[macro_use]
 extern crate clap;
 
+extern crate serde;
+extern crate serde_json;
+#[macro_use]
+extern crate serde_derive;
+
 mod network;
 mod engine;
 mod setup;

@@ -1,8 +1,12 @@
 use std::sync::{Arc, Mutex, Condvar};
-use std::collections::HashSet;
+use std::net::TcpListener;
 use std::error::Error;
 use std::thread;
-use std::vec::Drain;
+use std::net::AddrParseError;
+use std::io;
+
+mod server;
+mod client;
 
 /*
 NOTE: No need to create a new thread for this call
@@ -10,14 +14,19 @@ creates a new server that will listen on the given port, accept clients and forw
 The caller can send messages to clients by appending to the MsgToClientSet list.
 The caller can receive messages from clients by fetching from the MsgFromClient list.
 */
-pub fn spawn_server
-(
-    port : u16,
-    password : Option<u64>,
-    server_in : Arc<ProtectedQueue<MsgFromClient>>,
-    server_out : Arc<ProtectedQueue<MsgToClientSet>>,
-) -> Result<(), &'static Error> {
-    unimplemented!();
+pub fn spawn_server(port : u16,
+                    password : Option<u64>,
+                    server_in : Arc<ProtectedQueue<MsgFromClient>>,
+                    server_out : Arc<ProtectedQueue<MsgToClientSet>>,
+                ) -> Result<(), &'static str> {
+    if let Ok(listener) = TcpListener::bind(format!("127.0.0.1:{}", port)) {
+        thread::spawn(move || {
+            server::server_enter(listener, password, server_in, server_out);
+        });
+        Ok(())
+    } else {
+        Err("Couldn't bind!")
+    }
 }
 
 /*
@@ -26,14 +35,12 @@ creates a new client that will attempt to connect to a server on the given port
 The caller can send messages to the server by appending to the MsgToClientSet list.
 The caller can receive messages from the server by fetching from the MsgFromClient list.
 */
-pub fn spawn_client
-(
-    host : &str,
-    port : u16,
-    password : Option<u64>,
-    client_in : Arc<ProtectedQueue<MsgToClient>>,
-    client_out : Arc<ProtectedQueue<MsgToServer>>,
-) -> Result<ClientID, &'static Error> {
+pub fn spawn_client(host : &str,
+                    port : u16,
+                    password : Option<u64>,
+                    client_in : Arc<ProtectedQueue<MsgToClient>>,
+                    client_out : Arc<ProtectedQueue<MsgToServer>>,
+                ) -> Result<ClientID, &'static Error> {
     unimplemented!();
 }
 
@@ -42,12 +49,11 @@ pub fn spawn_client
 //NOTE need not start a new thread
 For single-player circumstances, the game can instead simply use a coupler
 */
-pub fn spawn_coupler(
-    server_in : Arc<ProtectedQueue<MsgFromClient>>,
-    server_out : Arc<ProtectedQueue<MsgToClientSet>>,
-    client_in : Arc<ProtectedQueue<MsgToClient>>,
-    client_out : Arc<ProtectedQueue<MsgToServer>>,
-) {
+pub fn spawn_coupler(server_in : Arc<ProtectedQueue<MsgFromClient>>,
+                     server_out : Arc<ProtectedQueue<MsgToClientSet>>,
+                     client_in : Arc<ProtectedQueue<MsgToClient>>,
+                     client_out : Arc<ProtectedQueue<MsgToServer>>,
+                 ) {
     thread::spawn(move ||{
         //client --> server
         loop {
@@ -79,6 +85,7 @@ pub type ClientID = u16;
 pub const SINGPLE_PLAYER_CID : ClientID = 0;
 
 //PRIMITIVE
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub enum MsgToServer {
     Goodbye, //I am disconnecting
 }
@@ -90,9 +97,10 @@ pub struct MsgFromClient {
 }
 
 //PRIMITIVE
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub enum MsgToClient {
     Welcome(ClientID), //you've connected. Here is the ClientID I will use to refer to you
-    Shutdown(String), //shut down because of this reason
+    Shutdown(), //shut down
 }
 
 //WRAPS MsgToClient
@@ -103,8 +111,6 @@ pub enum MsgToClientSet {
     // AnyOne(MsgToClient),
     // Specifically(MsgToClient, HashSet<ClientID>),
 }
-
-
 
 pub struct ProtectedQueue<T> {
     queue : Mutex<Vec<T>>,
