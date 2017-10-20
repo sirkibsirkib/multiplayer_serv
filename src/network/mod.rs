@@ -73,7 +73,9 @@ pub fn spawn_coupler(server_in : Arc<ProtectedQueue<MsgFromClient>>,
                      client_in : Arc<ProtectedQueue<MsgToClient>>,
                      client_out : Arc<ProtectedQueue<MsgToServer>>,
                  ) {
-    single::coupler_enter(server_in, server_out, client_in, client_out);
+    thread::spawn(move || {
+        single::coupler_enter(server_in, server_out, client_in, client_out);
+    });
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

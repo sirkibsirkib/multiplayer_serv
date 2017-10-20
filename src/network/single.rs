@@ -23,19 +23,15 @@ pub fn coupler_enter(server_in : Arc<ProtectedQueue<MsgFromClient>>,
             );
         }
     });
-
-    thread::spawn(move ||{
-        //server --> client
-        loop {
-            let server_outgoing = server_out.wait_until_nonempty_drain();
-            let mut actually_send = vec![];
-            for s in server_outgoing {
-                match s {
-                    MsgToClientSet::Only(msg, cid) => {if cid == SINGLE_PLAYER_CID {actually_send.push(msg)}},
-                    MsgToClientSet::All(msg) => actually_send.push(msg),
-                }
+    loop {
+        let server_outgoing = server_out.wait_until_nonempty_drain();
+        let mut actually_send = vec![];
+        for s in server_outgoing {
+            match s {
+                MsgToClientSet::Only(msg, cid) => {if cid == SINGLE_PLAYER_CID {actually_send.push(msg)}},
+                MsgToClientSet::All(msg) => actually_send.push(msg),
             }
-            client_in.lock_pushall_notify(actually_send.into_iter());
         }
-    });
+        client_in.lock_pushall_notify(actually_send.into_iter());
+    }
 }
