@@ -1,7 +1,7 @@
 pub mod shared_state;
 
 use std::sync::Arc;
-use network::{ProtectedQueue,MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer};
+use network::{ProtectedQueue,MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer,ClientID};
 
 use self::shared_state::SharedState;
 
@@ -24,6 +24,7 @@ Manages the shared game state
 */
 pub fn client_engine(client_in : Arc<ProtectedQueue<MsgToClient>>,
                     client_out : Arc<ProtectedQueue<MsgToServer>>,
-                    password : Option<u64>) {
+                    password : Option<u64>,
+                    c_id : ClientID) {
 
 }

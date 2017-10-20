@@ -13,12 +13,15 @@ pub struct Config{
     maybe_state : Option<SharedState>,
     run_mode : RunMode,
     password : Option<u64>,
+    port : Option<u16>,
+    host : Option<String>,
 }
 
 impl Config {
-    pub fn maybe_state(&self) -> &Option<SharedState> {&self.maybe_state}
     pub fn run_mode(&self) -> &RunMode {&self.run_mode}
     pub fn password(&self) -> Option<u64> {self.password}
+    pub fn port(&self) -> Option<u16> {self.port}
+    pub fn host(&self) -> Option<String> {self.host.clone()}
     pub fn extract_state(self) -> Option<SharedState> {self.maybe_state}
 }
 
@@ -28,9 +31,11 @@ pub fn configure() -> Config {
             (author: "NAME <email>")
             (about: "decript.")
 
-            (@arg RUN_MODE: +required +takes_value "TODO")
-            (@arg LOAD_PATH: -l --load_path +takes_value "TODO")
-            (@arg PASSWORD: -p --password +takes_value "TODO")
+            (@arg RUN_MODE: +required +takes_value "either `client`, `server` or `single`")
+            (@arg IP: -i --ip +takes_value "weefwfe")
+            (@arg PORT: -p --port +takes_value "weefwfe")
+            (@arg LOAD_PATH: -l --load_path +takes_value "weefwfe")
+            (@arg PASSWORD: -w --password +takes_value "rthrhtrth")
         ).get_matches();
 
 
@@ -40,18 +45,6 @@ pub fn configure() -> Config {
         "single" => RunMode::SinglePlayer,
         _ => panic!("NEED TO USE A VALID RUNMODE! SEE --help"),
     };
-
-    if let RunMode::ClientPlayer = run_mode {
-        if matches.is_present("LOAD_PATH"){
-            panic!("Client cant load from a path!");
-        }
-    }
-
-    if let RunMode::SinglePlayer = run_mode {
-        if matches.is_present("Single player doesn't use a password, as there is no server!"){
-            panic!();
-        }
-    }
 
     Config{
         run_mode : run_mode,
@@ -63,9 +56,20 @@ pub fn configure() -> Config {
             Some(s) => Some(s.parse().unwrap()),
             None => None,
         },
+
+        port : match matches.value_of("PORT") {
+            Some(s) => Some(s.parse().unwrap()),
+            None => None,
+        },
+
+        host : match matches.value_of("IP") {
+            Some(s) => Some(s.to_owned()),
+            None => None,
+        },
     }
 }
 
 fn load_from(path : &str) -> Result<SharedState, &'static Error> {
+    //TODO
     Ok(SharedState::new())
 }

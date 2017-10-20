@@ -10,11 +10,12 @@ creates a new server that will listen on the given port, accept clients and forw
 The caller can send messages to clients by appending to the MsgToClientSet list.
 The caller can receive messages from clients by fetching from the MsgFromClient list.
 */
-fn spawn_server(
+pub fn spawn_server
+(
     port : u16,
     password : Option<u64>,
-    outgoing : Arc<ProtectedQueue<MsgToClientSet>>,
-    incoming : Arc<ProtectedQueue<MsgFromClient>>,
+    server_in : Arc<ProtectedQueue<MsgFromClient>>,
+    server_out : Arc<ProtectedQueue<MsgToClientSet>>,
 ) -> Result<(), &'static Error> {
     unimplemented!();
 }
@@ -25,13 +26,13 @@ creates a new client that will attempt to connect to a server on the given port
 The caller can send messages to the server by appending to the MsgToClientSet list.
 The caller can receive messages from the server by fetching from the MsgFromClient list.
 */
-fn spawn_client<I, O>
+pub fn spawn_client
 (
     host : &str,
     port : u16,
     password : Option<u64>,
-    outgoing : Arc<ProtectedQueue<MsgToServer>>,
-    incoming : Arc<ProtectedQueue<MsgToClient>>
+    client_in : Arc<ProtectedQueue<MsgToClient>>,
+    client_out : Arc<ProtectedQueue<MsgToServer>>,
 ) -> Result<ClientID, &'static Error> {
     unimplemented!();
 }
@@ -42,30 +43,29 @@ fn spawn_client<I, O>
 For single-player circumstances, the game can instead simply use a coupler
 */
 pub fn spawn_coupler(
-    serv_out : Arc<ProtectedQueue<MsgToClientSet>>,
-    serv_in : Arc<ProtectedQueue<MsgFromClient>>,
+    server_in : Arc<ProtectedQueue<MsgFromClient>>,
+    server_out : Arc<ProtectedQueue<MsgToClientSet>>,
     client_in : Arc<ProtectedQueue<MsgToClient>>,
     client_out : Arc<ProtectedQueue<MsgToServer>>,
 ) {
-    let only_client_id : ClientID = 0;
     thread::spawn(move ||{
         //client --> server
         loop {
             let drained : Vec<MsgToServer> = client_out.wait_until_nonempty_drain();
-            serv_in.lock_pushall_notify(
+            server_in.lock_pushall_notify(
                 drained.into_iter()
-                .map(|x| MsgFromClient{msg:x, cid:only_client_id})
+                .map(|x| MsgFromClient{msg:x, cid:SINGPLE_PLAYER_CID})
             );
         }
     });
 
     thread::spawn(move ||{
         //server --> client
-        let serv_outgoing = serv_out.wait_until_nonempty_drain();
+        let server_outgoing = server_out.wait_until_nonempty_drain();
         let mut actually_send = vec![];
-        for s in serv_outgoing {
+        for s in server_outgoing {
             match s {
-                MsgToClientSet::Only(msg, cid) => {if cid == only_client_id {actually_send.push(msg)}},
+                MsgToClientSet::Only(msg, cid) => {if cid == SINGPLE_PLAYER_CID {actually_send.push(msg)}},
                 MsgToClientSet::All(msg) => actually_send.push(msg),
             }
         }
@@ -76,6 +76,7 @@ pub fn spawn_coupler(
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 pub type ClientID = u16;
+pub const SINGPLE_PLAYER_CID : ClientID = 0;
 
 //PRIMITIVE
 pub enum MsgToServer {
