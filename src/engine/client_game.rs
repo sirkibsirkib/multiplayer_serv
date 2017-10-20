@@ -3,6 +3,8 @@ use super::super::network::{ProtectedQueue,MsgToClient,MsgToServer,ClientID};
 
 extern crate piston_window;
 use self::piston_window::*;
+extern crate rand;
+use self::rand::{SeedableRng, Rng, Isaac64Rng};
 
 const WIDTH : f64 = 500.0;
 const HEIGHT : f64 = 400.0;
@@ -18,14 +20,19 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
     let mut local_state = GameState::new();
     let mut outgoing_update_requests : Vec<MsgToServer> = vec![];
     let mut controlling : Option<EntityID> = None;
+    let mut r = Isaac64Rng::from_seed(&[c_id as u64]);
 
     outgoing_update_requests.push(
-        MsgToServer::CreateEntity(23,Point{x:0.5, y:0.5})
+        MsgToServer::LoadEntities
+    );
+    let rand_sid = r.gen::<EntityID>() % 1000;
+    println!("my seed is {}", c_id);
+    outgoing_update_requests.push(
+        MsgToServer::CreateEntity(rand_sid, Point{x:r.gen::<f64>(), y:r.gen::<f64>()})
     );
     outgoing_update_requests.push(
-        MsgToServer::RequestControlOf(23)
+        MsgToServer::RequestControlOf(rand_sid)
     );
-
 
     let mut mouse_at : Option<[f64 ; 2]> = None;
     while let Some(e) = window.next() {
@@ -37,7 +44,9 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
             mouse_at = Some(z);
         }
         if let Some(button) = e.release_args() {
+            println!("YEEz");
             if button == Button::Mouse(MouseButton::Left) {
+                println!("YEE");
                 if let Some(m) = mouse_at {
                     if let Some(eid) = controlling {
                         let p = Point {x:m[0]/WIDTH, y:m[1]/HEIGHT};
@@ -70,6 +79,7 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
         for d in drained {
             use MsgToClient::*;
             match d {
+                ClientIDResponse(_) => {},
                 CreateEntity(eid,pt) => {
                     local_state.add_entity(eid,Entity::new(pt))
                 },

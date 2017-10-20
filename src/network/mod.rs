@@ -44,12 +44,16 @@ pub fn spawn_client(host : &str,
                 ) -> Result<ClientID, &'static Error> {
     //comment
     match TcpStream::connect(format!("{}:{}", host, port)) {
-        Ok(stream) => {
+        Ok(mut stream) => {
             //TODO password
+
+            stream.set_read_timeout(None).is_ok();
+            let cid = client::get_client_id_response(&mut stream);
             thread::spawn(move || {
                 client::client_enter(stream, client_in, client_out);
             });
-            Ok(47) //TODO bogus ClientID for now
+            println!("My CID is {:?}", cid);
+            Ok(cid)
         },
         Err(_) => {
             println!("No response.");
@@ -106,7 +110,8 @@ pub enum MsgToServer {
     RelinquishControlof(EntityID),
     CreateEntity(EntityID,Point),
     ControlMoveTo(EntityID,Point),
-    Reload(), //client needs positions of entities in area
+    ClientIDRequest,
+    LoadEntities, //client needs positions of entities in area
 }
 
 //PRIMITIVE
@@ -116,13 +121,14 @@ pub enum MsgToClient {
     YouNowControl(EntityID),
     YouNoLongerControl(EntityID),
     EntityMoveTo(EntityID,Point),
+    ClientIDResponse(ClientID),
 }
 
 
 //WRAPS MsgToServer
 pub struct MsgFromClient {
-    msg : MsgToServer,
-    cid : ClientID,
+    pub msg : MsgToServer,
+    pub cid : ClientID,
 }
 
 //WRAPS MsgToClient

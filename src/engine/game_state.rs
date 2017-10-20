@@ -23,6 +23,10 @@ impl GameState {
         Ok(GameState::new())
     }
 
+    pub fn entity_exists(&self, eid : EntityID) -> bool {
+        self.entities.contains_key(&eid)
+    }
+
     pub fn add_entity(&mut self, id : EntityID, e : Entity) {
         self.entities.insert(id, e);
     }

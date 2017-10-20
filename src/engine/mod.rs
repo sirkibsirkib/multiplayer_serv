@@ -16,7 +16,12 @@ Manages the shared game state
 pub fn server_engine(initial_state : Option<GameState>,
                     serv_in : Arc<ProtectedQueue<MsgFromClient>>,
                     serv_out : Arc<ProtectedQueue<MsgToClientSet>>) {
-
+    let global_state = if let Some(s) = initial_state {
+        s
+    } else {
+        GameState::new()
+    };
+    server_game::game_loop(global_state, serv_in, serv_out);
 }
 
 /*
