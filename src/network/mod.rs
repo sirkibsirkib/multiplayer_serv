@@ -8,6 +8,7 @@ use super::engine::game_state::{EntityID,Point};
 
 mod server;
 mod client;
+mod single;
 
 /*
 NOTE: No need to create a new thread for this call
@@ -72,36 +73,14 @@ pub fn spawn_coupler(server_in : Arc<ProtectedQueue<MsgFromClient>>,
                      client_in : Arc<ProtectedQueue<MsgToClient>>,
                      client_out : Arc<ProtectedQueue<MsgToServer>>,
                  ) {
-    thread::spawn(move ||{
-        //client --> server
-        loop {
-            let drained : Vec<MsgToServer> = client_out.wait_until_nonempty_drain();
-            server_in.lock_pushall_notify(
-                drained.into_iter()
-                .map(|x| MsgFromClient{msg:x, cid:SINGPLE_PLAYER_CID})
-            );
-        }
-    });
-
-    thread::spawn(move ||{
-        //server --> client
-        let server_outgoing = server_out.wait_until_nonempty_drain();
-        let mut actually_send = vec![];
-        for s in server_outgoing {
-            match s {
-                MsgToClientSet::Only(msg, cid) => {if cid == SINGPLE_PLAYER_CID {actually_send.push(msg)}},
-                MsgToClientSet::All(msg) => actually_send.push(msg),
-            }
-        }
-        client_in.lock_pushall_notify(actually_send.into_iter());
-    });
+    single::coupler_enter(server_in, server_out, client_in, client_out);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 
 pub type ClientID = u16;
-pub const SINGPLE_PLAYER_CID : ClientID = 0;
+pub const SINGLE_PLAYER_CID : ClientID = 0;
 
 //PRIMITIVE
 #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
@@ -126,12 +105,14 @@ pub enum MsgToClient {
 
 
 //WRAPS MsgToServer
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub struct MsgFromClient {
     pub msg : MsgToServer,
     pub cid : ClientID,
 }
 
 //WRAPS MsgToClient
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub enum MsgToClientSet {
     Only(MsgToClient, ClientID),
     All(MsgToClient),
@@ -161,6 +142,11 @@ impl<T> ProtectedQueue<T> {
             locked_queue.push(t);
         }
         self.cond.notify_all();
+    }
+
+    pub fn lock_len(&mut self) -> usize {
+        let mut locked_queue = self.queue.lock().unwrap();
+        locked_queue.len()
     }
 
     pub fn lock_push_notify(&self, t : T) {

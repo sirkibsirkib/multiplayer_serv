@@ -44,9 +44,7 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
             mouse_at = Some(z);
         }
         if let Some(button) = e.release_args() {
-            println!("YEEz");
             if button == Button::Mouse(MouseButton::Left) {
-                println!("YEE");
                 if let Some(m) = mouse_at {
                     if let Some(eid) = controlling {
                         let p = Point {x:m[0]/WIDTH, y:m[1]/HEIGHT};
