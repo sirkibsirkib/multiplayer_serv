@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std;
 use std::collections::HashMap;
-use std::io::prelude::*;
+use std::io::prelude::Read;
 use std::io::Write;
 use std::net::{TcpStream,TcpListener};
 use super::{ProtectedQueue,MsgFromClient,MsgToClientSet,ClientID,MsgToServer};
@@ -15,6 +15,7 @@ pub fn server_enter(listener : TcpListener,
                     serv_out : Arc<ProtectedQueue<MsgToClientSet>>,
                 ) {
 
+    //TODO password
     let streams = Arc::new(Mutex::new(HashMap::new()));
     let streams3 = streams.clone();
     println!("Server enter begin");
@@ -54,7 +55,7 @@ fn serve_incoming(c_id : ClientID,
                   serv_in : Arc<ProtectedQueue<MsgFromClient>>
               ) {
     let mut buf = [0; 1024];
-        loop {
+    loop {
         //blocks until something is there
         match stream.read(&mut buf) {
             Ok(bytes) => {

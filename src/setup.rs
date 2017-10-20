@@ -1,6 +1,4 @@
-use super::engine::shared_state::SharedState;
-use std::error::Error;
-
+use super::engine::game_state::GameState;
 
 pub enum RunMode {
     ClientPlayer,
@@ -10,7 +8,7 @@ pub enum RunMode {
 
 
 pub struct Config{
-    maybe_state : Option<SharedState>,
+    maybe_state : Option<GameState>,
     run_mode : RunMode,
     password : Option<u64>,
     port : Option<u16>,
@@ -22,7 +20,7 @@ impl Config {
     pub fn password(&self) -> Option<u64> {self.password}
     pub fn port(&self) -> Option<u16> {self.port}
     pub fn host(&self) -> Option<String> {self.host.clone()}
-    pub fn extract_state(self) -> Option<SharedState> {self.maybe_state}
+    pub fn extract_state(self) -> Option<GameState> {self.maybe_state}
 }
 
 pub fn configure() -> Config {
@@ -49,7 +47,7 @@ pub fn configure() -> Config {
     Config{
         run_mode : run_mode,
         maybe_state : match matches.value_of("load_path") {
-            Some(s) => Some(load_from(s).unwrap()),
+            Some(s) => Some(GameState::load_from(s).unwrap()),
             None => None,
         },
         password : match matches.value_of("PASSWORD") {
@@ -67,9 +65,4 @@ pub fn configure() -> Config {
             None => None,
         },
     }
-}
-
-fn load_from(path : &str) -> Result<SharedState, &'static Error> {
-    //TODO
-    Ok(SharedState::new())
 }

@@ -18,7 +18,6 @@ use setup::RunMode;
 
 fn main() {
     let config = setup::configure();
-    let password = config.password();
 
     match config.run_mode() {
         &RunMode::ClientPlayer => {
@@ -35,7 +34,7 @@ fn main() {
                 client_in,
                 client_out,
             ).expect("Failed to spawn client");
-            engine::client_engine(client_in2, client_out2, config.password(), c_id);
+            engine::client_engine(client_in2, client_out2, c_id);
         }
 
         &RunMode::Server => {
@@ -52,7 +51,7 @@ fn main() {
                 server_in,
                 server_out,
             ).expect("FAILED TO SPAWN SERVER");
-            engine::server_engine(config.extract_state(), server_in2, server_out2, password);
+            engine::server_engine(config.extract_state(), server_in2, server_out2);
         }
 
         &RunMode::SinglePlayer => {
@@ -68,9 +67,9 @@ fn main() {
 
             network::spawn_coupler(server_in, server_out, client_in, client_out);
             thread::spawn(move || {
-                engine::client_engine(client_in2, client_out2, password, network::SINGPLE_PLAYER_CID)
+                engine::client_engine(client_in2, client_out2, network::SINGPLE_PLAYER_CID)
             });
-            engine::server_engine(config.extract_state(), server_in2, server_out2, password);
+            engine::server_engine(config.extract_state(), server_in2, server_out2);
         }
     }
 }

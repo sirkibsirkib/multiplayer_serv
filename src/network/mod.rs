@@ -2,8 +2,9 @@ use std::sync::{Arc, Mutex, Condvar};
 use std::net::TcpListener;
 use std::error::Error;
 use std::thread;
-use std::net::AddrParseError;
-use std::io;
+use std::net::TcpStream;
+
+use super::engine::game_state::{EntityID,Point};
 
 mod server;
 mod client;
@@ -41,7 +42,20 @@ pub fn spawn_client(host : &str,
                     client_in : Arc<ProtectedQueue<MsgToClient>>,
                     client_out : Arc<ProtectedQueue<MsgToServer>>,
                 ) -> Result<ClientID, &'static Error> {
-    unimplemented!();
+    //comment
+    match TcpStream::connect(format!("{}:{}", host, port)) {
+        Ok(stream) => {
+            //TODO password
+            thread::spawn(move || {
+                client::client_enter(stream, client_in, client_out);
+            });
+            Ok(47) //TODO bogus ClientID for now
+        },
+        Err(_) => {
+            println!("No response.");
+            panic!();
+        }
+    }
 }
 
 
@@ -81,26 +95,34 @@ pub fn spawn_coupler(server_in : Arc<ProtectedQueue<MsgFromClient>>,
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
+
 pub type ClientID = u16;
 pub const SINGPLE_PLAYER_CID : ClientID = 0;
 
 //PRIMITIVE
 #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub enum MsgToServer {
-    Goodbye, //I am disconnecting
-}
-
-//WRAPS MsgToServer
-pub struct MsgFromClient {
-    msg : MsgToServer,
-    cid : ClientID,
+    RequestControlOf(EntityID),
+    RelinquishControlof(EntityID),
+    CreateEntity(EntityID,Point),
+    ControlMoveTo(EntityID,Point),
+    Reload(), //client needs positions of entities in area
 }
 
 //PRIMITIVE
 #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub enum MsgToClient {
-    Welcome(ClientID), //you've connected. Here is the ClientID I will use to refer to you
-    Shutdown(), //shut down
+    CreateEntity(EntityID,Point),
+    YouNowControl(EntityID),
+    YouNoLongerControl(EntityID),
+    EntityMoveTo(EntityID,Point),
+}
+
+
+//WRAPS MsgToServer
+pub struct MsgFromClient {
+    msg : MsgToServer,
+    cid : ClientID,
 }
 
 //WRAPS MsgToClient
@@ -126,7 +148,7 @@ impl<T> ProtectedQueue<T> {
         }
     }
 
-    fn lock_pushall_notify<I>(&self, ts : I)
+    pub fn lock_pushall_notify<I>(&self, ts : I)
             where I: Iterator<Item=T>{
         let mut locked_queue = self.queue.lock().unwrap();
         for t in ts {
@@ -135,13 +157,25 @@ impl<T> ProtectedQueue<T> {
         self.cond.notify_all();
     }
 
-    fn lock_push_notify(&self, t : T) {
+    pub fn lock_push_notify(&self, t : T) {
         let mut locked_queue = self.queue.lock().unwrap();
         locked_queue.push(t);
         self.cond.notify_all();
     }
 
-    fn wait_until_nonempty_drain(&self) -> Vec<T> {
+    //locks once. if there is nothing, returns none. if there is something, drains
+    pub fn impatient_drain(&self) -> Option<Vec<T>> {
+        let mut locked_queue = self.queue.lock().unwrap();
+        if locked_queue.is_empty() {
+            None
+        } else {
+            let x : Vec<T> = locked_queue.drain(..).collect();
+            Some(x)
+        }
+    }
+
+    //continuously attempts to lock, sleep and drain until successful
+    pub fn wait_until_nonempty_drain(&self) -> Vec<T> {
         let mut locked_queue = self.queue.lock().unwrap();
         while locked_queue.is_empty() {
             locked_queue = self.cond.wait(locked_queue).unwrap();
