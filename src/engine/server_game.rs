@@ -12,19 +12,38 @@ pub fn game_loop(mut global_state : GameState,
     println!("Server game loop");
     //comment
     let time_between_updates = time::Duration::from_millis(1000/game_state::UPDATES_PER_SEC);
+    let time_between_syncfloods = time::Duration::from_millis(3000);
+
     let mut player_controlling : HashMap<ClientID,Vec<EntityID>> = HashMap::new();
 
-    global_state.add_entity(8437, Entity::new(Point{x:0.9, y:0.9}));
+    let mut last_syncflood_at = time::Instant::now();
 
+    global_state.add_entity(8437, Entity::new(Point{x:0.9, y:0.9}));
     loop {
-        let now = time::Instant::now();
+        let update_start = time::Instant::now();
+        if last_syncflood_at.elapsed() > time_between_syncfloods {
+            last_syncflood_at = update_start;
+            synchflood(&serv_out, &global_state);
+        }
 
         update_step(&serv_in, &serv_out, &mut global_state, &mut player_controlling);
 
-        let elapsed = now.elapsed();
-        if elapsed < time_between_updates {
-            thread::sleep(time_between_updates - elapsed);
+        let since_update = update_start.elapsed();
+        if since_update < time_between_updates {
+            thread::sleep(time_between_updates - since_update);
         }
+    }
+}
+
+fn synchflood(serv_out : &Arc<ProtectedQueue<MsgToClientSet>>, global_state : &GameState) {
+    println!("SYNCHFLOOD!");
+    //TODO dont send everything to everyone. instead figure out what each client can see
+    for (eid, e) in global_state.entity_iterator() {
+        serv_out.lock_push_notify(
+            MsgToClientSet::All(
+                MsgToClient::EntityMoveTo(*eid, *e.p())
+            )
+        );
     }
 }
 

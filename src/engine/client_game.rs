@@ -18,10 +18,14 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
                  c_id : ClientID) {
     let mut window = init_window();
 
-    let mut next_eid = (c_id as u64 + 5) << 40; // this gives the server 40 bits of reserved eids
+    let mut next_eid = (c_id as u64 + 1) << 40; // this gives the server +40 bits of reserved eids
 
     let mut local_state = GameState::new();
+
+    // this is just a local vector to batch requests. populating this essentially populates client_out
     let mut outgoing_update_requests : Vec<MsgToServer> = vec![];
+
+    // to help it know which eid the user is attempting to manipulate with movement
     let mut controlling : Option<EntityID> = None;
     let mut r = Isaac64Rng::from_seed(&[c_id as u64]);
 
