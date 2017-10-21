@@ -6,7 +6,6 @@ pub enum RunMode {
     SinglePlayer,
 }
 
-
 pub struct Config{
     maybe_state : Option<GameState>,
     run_mode : RunMode,

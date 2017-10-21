@@ -17,6 +17,9 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
                  client_out : Arc<ProtectedQueue<MsgToServer>>,
                  c_id : ClientID) {
     let mut window = init_window();
+
+    let mut next_eid = (c_id as u64 + 5) << 40; // this gives the server 40 bits of reserved eids
+
     let mut local_state = GameState::new();
     let mut outgoing_update_requests : Vec<MsgToServer> = vec![];
     let mut controlling : Option<EntityID> = None;
@@ -25,20 +28,21 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
     outgoing_update_requests.push(
         MsgToServer::LoadEntities
     );
-    let rand_sid = r.gen::<EntityID>() % 1000;
+    println!("Client game loop");
     println!("my seed is {}", c_id);
     outgoing_update_requests.push(
-        MsgToServer::CreateEntity(rand_sid, Point{x:r.gen::<f64>(), y:r.gen::<f64>()})
+        MsgToServer::CreateEntity(next_eid, Point{x:r.gen::<f64>(), y:r.gen::<f64>()})
     );
     outgoing_update_requests.push(
-        MsgToServer::RequestControlOf(rand_sid)
+        MsgToServer::RequestControlOf(next_eid)
     );
+    next_eid += 1;
 
     let mut mouse_at : Option<[f64 ; 2]> = None;
     while let Some(e) = window.next() {
         if let Some(_) = e.render_args() {
             window.draw_2d(&e, | _ , graphics| clear([0.0; 4], graphics));
-            render_entities(&local_state, &e, &mut window);
+            render_entities(&local_state, &e, &mut window, &controlling);
         }
         if let Some(z) = e.mouse_cursor_args() {
             mouse_at = Some(z);
@@ -77,7 +81,8 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
         for d in drained {
             use MsgToClient::*;
             match d {
-                ClientIDResponse(_) => {},
+                RefuseHandshake => {panic!()}
+                CompleteHandshake(_) => {},
                 CreateEntity(eid,pt) => {
                     local_state.add_entity(eid,Entity::new(pt))
                 },
@@ -97,12 +102,17 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
     }
 }
 
-fn render_entities(game_state : &GameState, event : &Event, window : &mut PistonWindow) {
-    for (_, e) in game_state.entity_iterator() {
+fn render_entities(game_state : &GameState, event : &Event, window : &mut PistonWindow, controlling : &Option<EntityID>) {
+    for (eid, e) in game_state.entity_iterator() {
+        let col = if &Some(*eid) == controlling {
+            [0.0, 1.0, 0.0, 1.0] //green
+        } else {
+            [0.7, 0.7, 0.7, 1.0] //gray
+        };
         let rad = 10.0;
         window.draw_2d(event, |context, graphics| {
                     ellipse(
-                        [0.0, 1.0, 0.0, 1.0], //green
+                        col,
                         [
                             (e.p().x as f64)*WIDTH - rad,
                             (e.p().y as f64)*HEIGHT - rad,

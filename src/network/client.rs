@@ -1,10 +1,11 @@
-use super::{ProtectedQueue,MsgToClient,MsgToServer,ClientID};
+use super::{ProtectedQueue,MsgToClient,MsgToServer,ClientID,Password};
 use std::sync::Arc;
 use std::io::Write;
 use std::io::prelude::Read;
 use std::net::TcpStream;
 use std::thread;
 use serde_json;
+use std::time;
 use std;
 
 pub fn client_enter(stream : TcpStream,
@@ -19,19 +20,31 @@ pub fn client_enter(stream : TcpStream,
     client_outgoing(stream_clone, client_out);
 }
 
-pub fn get_client_id_response(stream : &mut TcpStream) -> ClientID {
+pub fn client_instigate_handshake(stream : &mut TcpStream, password : Password) -> ClientID {
     let mut buf = [0; 1024];
-    stream.write(serde_json::to_string(&MsgToServer::ClientIDRequest).unwrap().as_bytes()).is_ok();
+    let short_timeout = time::Duration::from_millis(100);
+    stream.set_read_timeout(Some(short_timeout)).is_ok();
+    let password_msg = serde_json::to_string(&MsgToServer::StartHandshake(password)).unwrap();
+    let password_bytes = password_msg.as_bytes();
+    stream.write(password_bytes).is_ok();
     loop {
         if let Ok(bytes) = stream.read(&mut buf) {
-            let s = std::str::from_utf8(&buf[..bytes]).unwrap();
-            let x : MsgToClient = serde_json::from_str(&s).unwrap();
-            if let MsgToClient::ClientIDResponse(cid)  = x {
-                return cid
+            if bytes == 0 {
+                //timed out. resend request
+                println!("send timeout");
+                stream.write(password_bytes).is_ok();
+            } else {
+                let s = std::str::from_utf8(&buf[..bytes]).unwrap();
+                let x : MsgToClient = serde_json::from_str(&s).unwrap();
+                if let MsgToClient::CompleteHandshake(cid)  = x {
+                    stream.set_read_timeout(None).is_ok();
+                    return cid
+                } else if let MsgToClient::RefuseHandshake = x {
+                    panic!("Server refused!");
+                }
             }
-            //TODO re-send
         } else {
-            panic!();
+            panic!("Failed to read from socket!");
         }
     }
 }

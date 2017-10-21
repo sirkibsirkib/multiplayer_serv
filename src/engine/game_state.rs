@@ -3,10 +3,7 @@ use std::collections::HashMap;
 
 pub const UPDATES_PER_SEC : u64 = 32;
 
-/*
-Represents the shared state
 
-*/
 pub struct GameState {
     entities : HashMap<EntityID, Entity>,
 }

@@ -11,10 +11,14 @@ mod client;
 mod single;
 
 /*
-NOTE: No need to create a new thread for this call
-creates a new server that will listen on the given port, accept clients and forward messages.
-The caller can send messages to clients by appending to the MsgToClientSet list.
-The caller can receive messages from clients by fetching from the MsgFromClient list.
+Creates autonomous server that will attempt to drain server_in and populate server_out.
+Runs in several threads. has popup threads for incoming clients. accepts new clients and issues then CIDs
+
+               --server_in-->          ~~TCP packets~~>  ||
+SERVER_ENGINE                  SERVER                    ||network
+               <--server_out--         <~~TCP packets~~  ||
+
+NOTE: Does NOT consume caller thread
 */
 pub fn spawn_server(port : u16,
                     password : Option<u64>,
@@ -32,10 +36,14 @@ pub fn spawn_server(port : u16,
 }
 
 /*
-NOTE: No need to create a new thread for this call
-creates a new client that will attempt to connect to a server on the given port
-The caller can send messages to the server by appending to the MsgToClientSet list.
-The caller can receive messages from the server by fetching from the MsgFromClient list.
+Creates autonomous server that will attempt to drain server_in and populate server_out.
+Runs in several threads. has popup threads for incoming clients. accepts new clients and issues then CIDs
+
+                --client_in-->          ~~TCP packets~~>  ||
+CLIENT_ENGINE                   CLIENT                    ||network
+                <--client_out--         <~~TCP packets~~  ||
+
+NOTE: Does NOT consume caller thread
 */
 pub fn spawn_client(host : &str,
                     port : u16,
@@ -49,7 +57,7 @@ pub fn spawn_client(host : &str,
             //TODO password
 
             stream.set_read_timeout(None).is_ok();
-            let cid = client::get_client_id_response(&mut stream);
+            let cid = client::client_instigate_handshake(&mut stream, password);
             thread::spawn(move || {
                 client::client_enter(stream, client_in, client_out);
             });
@@ -65,8 +73,10 @@ pub fn spawn_client(host : &str,
 
 
 /*
-//NOTE need not start a new thread
-For single-player circumstances, the game can instead simply use a coupler
+couples server_in with client_out, client_in with server_out.
+Greedily drains OUTs and populates INs.
+Outside engines can use this coupler by draining their respective IN and populating their OUT
+NOTE: Does NOT consume caller thread
 */
 pub fn spawn_coupler(server_in : Arc<ProtectedQueue<MsgFromClient>>,
                      server_out : Arc<ProtectedQueue<MsgToClientSet>>,
@@ -82,6 +92,7 @@ pub fn spawn_coupler(server_in : Arc<ProtectedQueue<MsgFromClient>>,
 
 
 pub type ClientID = u16;
+pub type Password = Option<u64>;
 pub const SINGLE_PLAYER_CID : ClientID = 0;
 
 //PRIMITIVE
@@ -91,7 +102,7 @@ pub enum MsgToServer {
     RelinquishControlof(EntityID),
     CreateEntity(EntityID,Point),
     ControlMoveTo(EntityID,Point),
-    ClientIDRequest,
+    StartHandshake(Password),
     LoadEntities, //client needs positions of entities in area
 }
 
@@ -102,7 +113,8 @@ pub enum MsgToClient {
     YouNowControl(EntityID),
     YouNoLongerControl(EntityID),
     EntityMoveTo(EntityID,Point),
-    ClientIDResponse(ClientID),
+    CompleteHandshake(ClientID),
+    RefuseHandshake,
 }
 
 

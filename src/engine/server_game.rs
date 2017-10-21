@@ -3,12 +3,13 @@ use super::game_state::{GameState,EntityID,Entity,Point};
 use std::sync::Arc;
 use std::time;
 use std::collections::HashMap;
-use super::super::network::{ProtectedQueue,MsgFromClient,MsgToClientSet,ClientID,MsgToClient};
+use super::super::network::{ProtectedQueue,MsgFromClient,MsgToClientSet,ClientID,MsgToClient,MsgToServer};
 use std::thread;
 
 pub fn game_loop(mut global_state : GameState,
                  serv_in : Arc<ProtectedQueue<MsgFromClient>>,
                  serv_out : Arc<ProtectedQueue<MsgToClientSet>>) {
+    println!("Server game loop");
     //comment
     let time_between_updates = time::Duration::from_millis(1000/game_state::UPDATES_PER_SEC);
     let mut player_controlling : HashMap<ClientID,Vec<EntityID>> = HashMap::new();
@@ -37,34 +38,31 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
     //fetch all requests and act appropriately
     if let Some(drained) = serv_in.impatient_drain() {
         for d in drained {
-            use MsgToServer::*;
             match d.msg {
-                ClientIDRequest => {
-                    outgoing_updates.push(
-                        MsgToClientSet::Only(MsgToClient::ClientIDResponse(d.cid), d.cid)
-                    );
+                MsgToServer::StartHandshake(_)=> {
+                    //ignore
                 }
-                LoadEntities => {
+                MsgToServer::LoadEntities => {
                     for e in global_state.entity_iterator() {
                         outgoing_updates.push(
                             MsgToClientSet::Only(MsgToClient::CreateEntity(*e.0,*e.1.p()), d.cid)
                         );
                     }
                 }
-                RequestControlOf(eid) => {
+                MsgToServer::RequestControlOf(eid) => {
                     try_add_control(d.cid, eid, global_state, player_controlling);
                     outgoing_updates.push(
                         MsgToClientSet::Only(MsgToClient::YouNowControl(eid), d.cid)
                     );
                 }
-                CreateEntity(eid,pt) => {
+                MsgToServer::CreateEntity(eid,pt) => {
                     global_state.add_entity(eid, Entity::new(pt));
                     outgoing_updates.push(
                         MsgToClientSet::All(MsgToClient::CreateEntity(eid,pt))
                     );
 
                 }
-                ControlMoveTo(eid,pt) => {
+                MsgToServer::ControlMoveTo(eid,pt) => {
                     if client_controls(d.cid, eid, player_controlling) {
                         global_state.entity_move_to(eid, pt);
                         outgoing_updates.push(

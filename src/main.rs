@@ -16,17 +16,34 @@ mod setup;
 use network::{ProtectedQueue,MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer};
 use setup::RunMode;
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 fn main() {
     let config = setup::configure();
 
+    /*
+    See idea.png for an overview.
+    The summary is: the players (or player) interact with the "clientside"/local game state / engine directly.
+    This engine computes and performs all tasks that it can locally. eg: UI.
+    Whenever a change is made that `would` impact the global state in any way, this change is ONLY asynchronously
+    requested (dead-reckoning notwithstanding).
+
+    at client-side update() steps, incoming server-sent state changes then actually alter this state.
+
+    This client-server concept means that even singleplayer is composed of a client and server component,
+    but they just communicate via shared data rather than over a network. Thus there is very little difference
+    between running a client + running a server on one machine vs playing single player (except for some overhead).
+    */
     match config.run_mode() {
         &RunMode::ClientPlayer => {
-            let client_in : Arc<ProtectedQueue<MsgToClient>> = Arc::new(ProtectedQueue::new());
-            let client_out : Arc<ProtectedQueue<MsgToServer>> = Arc::new(ProtectedQueue::new());
 
+            //these TWO queues represent the two uni-directional channels between client engine and network client.
+            let client_in : Arc<ProtectedQueue<MsgToClient>> = Arc::new(ProtectedQueue::new());
             let client_in2 = client_in.clone();
+            let client_out : Arc<ProtectedQueue<MsgToServer>> = Arc::new(ProtectedQueue::new());
             let client_out2 = client_out.clone();
 
+            //spawns client in new threads, returns our server-issued client ID. mostly useful for debugging tbh
             let c_id = network::spawn_client(
                 &config.host().expect("Need to specify host!"),
                 config.port().expect("Need to specify port!"),
@@ -34,27 +51,37 @@ fn main() {
                 client_in,
                 client_out,
             ).expect("Failed to spawn client");
+
+            //this call consumes the thread. It begins the client-side game loop
             engine::client_engine(client_in2, client_out2, c_id);
         }
 
         &RunMode::Server => {
+
+            //these TWO queues represent the two uni-directional channels between server engine and network server.
             let server_in : Arc<ProtectedQueue<MsgFromClient>> = Arc::new(ProtectedQueue::new());
-            let server_out : Arc<ProtectedQueue<MsgToClientSet>> = Arc::new(ProtectedQueue::new());
-
-            let server_out2 = server_out.clone();
             let server_in2 = server_in.clone();
+            let server_out : Arc<ProtectedQueue<MsgToClientSet>> = Arc::new(ProtectedQueue::new());
+            let server_out2 = server_out.clone();
 
-
+            //spawns a server in new threads.
             network::spawn_server(
                 config.port().expect("Need to specify port!"),
                 config.password(),
                 server_in,
                 server_out,
             ).expect("FAILED TO SPAWN SERVER");
+
+            //consumes this thread to begin the game loop of the global game state aka `server game loop`
             engine::server_engine(config.extract_state(), server_in2, server_out2);
         }
 
         &RunMode::SinglePlayer => {
+            /*
+                    --client_out-->         --server_in-->
+            CLIENT                  COUPLER                 SERVER
+                    <--client_in--         <--server_out--
+            */
             let server_in : Arc<ProtectedQueue<MsgFromClient>> = Arc::new(ProtectedQueue::new());
             let server_out : Arc<ProtectedQueue<MsgToClientSet>> = Arc::new(ProtectedQueue::new());
             let client_in : Arc<ProtectedQueue<MsgToClient>> = Arc::new(ProtectedQueue::new());
@@ -65,10 +92,12 @@ fn main() {
             let client_in2 = client_in.clone();
             let client_out2 = client_out.clone();
 
+            //spawns a coupler in new threads.
             network::spawn_coupler(server_in, server_out, client_in, client_out);
             thread::spawn(move || {
                 engine::server_engine(config.extract_state(), server_in2, server_out2);
             });
+            //consumes this thread to create client-side aka `local` game loop & engine
             //main thread == client thread. So if piston exists, everything exits
             engine::client_engine(client_in2, client_out2, network::SINGLE_PLAYER_CID)
         }
