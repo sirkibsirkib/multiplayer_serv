@@ -1,0 +1,44 @@
+The game state is composed of:
+-ENTITY:
+NPCs, playable characters, animals
+
+-OBJECT:
+    The fundamental interactive primitive of the world.
+    Any object that has a physical representation, but can also be a reagent in (or product of) a recipe.
+    They can be inserted into other objects
+
+    -DOODAD:
+        Doodads are objects that exist by default and are deterministically procedurally generated.
+        Typically these are terrain features like stones and shrubs. The main difference between a Doodad and an Item
+        is that doodads exist by default, and are explicitly modified, whereas items do not exist by default.
+        this is mainly a distinction for performance reasons. Clients can generate doodads according to a
+        procedural noise function, and explicitly make exceptions.
+        Doodads also are not stored individually. They are rather stored in blueprint batches.
+        eg: 100 shrubs is represented by a single Doodad blueprint, a set of assets, a function for choosing an asset, and 100 points.
+
+    -ITEM:
+        Items are objects that do not exist by default and are not deterministically procedurally generated.
+        Generally these are introduced into the world by the player either directly or indirectly.
+        Each item is stored individually and has its own attributes.
+
+/////////////////////////////////////////////
+
+struct DoodadSet {
+    bp : DoodadBlueprint,
+    if : InstanceFunction
+    instances : Vec<Point>,
+}
+
+struct DoodadBlueprint<'a> {
+    assets : Vec<&'a Asset>
+}
+
+struct QuadTree<T> {
+    contents : QuadEnum<T>,
+}
+
+QuadEnum<T> {
+    Many(Box<[QuadTree<T>;4]>),
+    One(T),
+    Nothing,
+}

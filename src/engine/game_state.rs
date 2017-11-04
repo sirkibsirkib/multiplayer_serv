@@ -1,6 +1,8 @@
 use std::io::Error;
 use std::collections::HashMap;
 
+// use super::quad_tree::QuadTree;
+
 pub const UPDATES_PER_SEC : u64 = 32;
 
 
@@ -16,8 +18,7 @@ impl GameState {
     }
 
     pub fn load_from(path : &str) -> Result<GameState, &'static Error> {
-        //TODO
-        Ok(GameState::new())
+        unimplemented!()
     }
 
     pub fn entity_exists(&self, eid : EntityID) -> bool {

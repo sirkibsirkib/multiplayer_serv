@@ -13,7 +13,7 @@ pub fn client_enter(stream : TcpStream,
                     client_out : Arc<ProtectedQueue<MsgToServer>>,
                 ){
     //comment
-    let stream_clone = stream.try_clone().unwrap();
+    let stream_clone = stream.try_clone().expect("client stream clone");
     thread::spawn(move || {
         client_incoming(stream, client_in);
     });
@@ -24,7 +24,7 @@ pub fn client_instigate_handshake(stream : &mut TcpStream, password : Password) 
     let mut buf = [0; 1024];
     let short_timeout = time::Duration::from_millis(100);
     stream.set_read_timeout(Some(short_timeout)).is_ok();
-    let password_msg = serde_json::to_string(&MsgToServer::StartHandshake(password)).unwrap();
+    let password_msg = serde_json::to_string(&MsgToServer::StartHandshake(password)).expect("handshake to str");
     let password_bytes = password_msg.as_bytes();
     stream.write(password_bytes).is_ok();
     loop {
@@ -34,8 +34,8 @@ pub fn client_instigate_handshake(stream : &mut TcpStream, password : Password) 
                 println!("send timeout");
                 stream.write(password_bytes).is_ok();
             } else {
-                let s = std::str::from_utf8(&buf[..bytes]).unwrap();
-                let x : MsgToClient = serde_json::from_str(&s).unwrap();
+                let s = std::str::from_utf8(&buf[..bytes]).expect("to string client");
+                let x : MsgToClient = serde_json::from_str(&s).expect("serde client");
                 if let MsgToClient::CompleteHandshake(cid)  = x {
                     stream.set_read_timeout(None).is_ok();
                     return cid
@@ -56,8 +56,8 @@ fn client_incoming(mut stream : TcpStream, client_in : Arc<ProtectedQueue<MsgToC
         //blocks until something is there
         match stream.read(&mut buf) {
             Ok(bytes) => {
-                let s = std::str::from_utf8(&buf[..bytes]).unwrap();
-                let x : MsgToClient = serde_json::from_str(&s).unwrap();
+                let s = std::str::from_utf8(&buf[..bytes]).expect("client in to str");
+                let x : MsgToClient = serde_json::from_str(&s).expect("client to MsgToClient");
                 println!("client incoming read of {:?}", &x);
                 client_in.lock_push_notify(x);
             },
@@ -75,7 +75,7 @@ fn client_outgoing(mut stream : TcpStream, client_out : Arc<ProtectedQueue<MsgTo
         let drained = client_out.wait_until_nonempty_drain();
         for d in drained {
             println!("client outgoing write of {:?}", &d);
-            stream.write(serde_json::to_string(&d).unwrap().as_bytes()).is_ok();
+            stream.write(serde_json::to_string(&d).expect("client out write serde").as_bytes()).is_ok();
         }
     }
 }

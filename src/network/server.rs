@@ -42,7 +42,7 @@ fn listen_for_new_clients(listener : TcpListener,
     println!("Server listening for clients");
     //sleepily handle incoming listeners
     for s in listener.incoming() {
-        let stream = s.unwrap();
+        let stream = s.expect("failed to get incoming stream");
         stream.set_read_timeout(None).is_ok();
         println!("Handing connection to verifier");
         unverified_connections.lock_push_notify(stream);
@@ -64,22 +64,22 @@ fn verify_connections(unverified : Arc<ProtectedQueue<TcpStream>>,
                 //keep reading until you see that handshake
                 match stream.read(&mut buf) {
                     Ok(bytes) => {
-                        let s = std::str::from_utf8(&buf[..bytes]).unwrap();
-                        let x : MsgToServer = serde_json::from_str(&s).unwrap();
+                        let s = std::str::from_utf8(&buf[..bytes]).expect("bytes to string");
+                        let x : MsgToServer = serde_json::from_str(&s).expect("verify connections to json");
                         if let MsgToServer::StartHandshake(supplied_password) = x {
                             if supplied_password != password {
 
                                 println!("Refusing client");
                                 let refuse = MsgToClient::RefuseHandshake;
-                                stream.write(serde_json::to_string(&refuse).unwrap().as_bytes()).is_ok();
+                                stream.write(serde_json::to_string(&refuse).expect("refuse to json").as_bytes()).is_ok();
                                 break;
                             }
                             println!("Accepting client. assigning CID {}", &next_cid);
                             let accept = MsgToClient::CompleteHandshake(next_cid);
-                            stream.write(serde_json::to_string(&accept).unwrap().as_bytes()).is_ok();
-                            let stream_clone = stream.try_clone().unwrap();
+                            stream.write(serde_json::to_string(&accept).expect("accept to json").as_bytes()).is_ok();
+                            let stream_clone = stream.try_clone().expect("stream clone");
                             {
-                                streams.lock().unwrap().insert(next_cid, stream);
+                                streams.lock().expect("line 82 lock").insert(next_cid, stream);
                             }
                             let serv_in_clone = serv_in.clone();
                             thread::spawn(move || {
@@ -113,8 +113,8 @@ fn serve_incoming(c_id : ClientID,
         //blocks until something is there
         match stream.read(&mut buf) {
             Ok(bytes) => {
-                let s = std::str::from_utf8(&buf[..bytes]).unwrap();
-                let x : MsgToServer = serde_json::from_str(&s).unwrap();
+                let s = std::str::from_utf8(&buf[..bytes]).expect("serve incoming bytes to str");
+                let x : MsgToServer = serde_json::from_str(&s).expect("serde json serve incoming");
                 println!("server incoming read of {:?} from {:?}", &x, &c_id);
                 serv_in.lock_push_notify(MsgFromClient{msg:x, cid:c_id})
             },
@@ -141,18 +141,18 @@ fn serve_outgoing(streams : Arc<Mutex<HashMap<ClientID,TcpStream>>>,
 
         {
             //lock streams
-            let mut locked_streams = streams.lock().unwrap();
+            let mut locked_streams = streams.lock().expect("lock streams serve outgoing");
             for m in msgsets.drain(..) {
                 match m {
                     MsgToClientSet::Only(msg, c_id) => {
                         if let Some(stream) = locked_streams.get_mut(&c_id){
                             println!("server outgoing write of {:?} to {:?}", &msg, &c_id);
-                            stream.write(serde_json::to_string(&msg).unwrap().as_bytes()).is_ok();
+                            stream.write(serde_json::to_string(&msg).expect("serde outgoing json ONLY").as_bytes()).is_ok();
                         }
                     },
                     MsgToClientSet::All(msg) => {
                         println!("server outgoing write of {:?} to ALL", &msg);
-                        let s = serde_json::to_string(&msg).unwrap();
+                        let s = serde_json::to_string(&msg).expect("serde outgoing json ALL");
                         for stream in locked_streams.values_mut() {
                             stream.write(s.as_bytes()).is_ok();
                         }

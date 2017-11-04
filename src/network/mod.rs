@@ -159,7 +159,7 @@ impl<T> ProtectedQueue<T> {
     }
 
     pub fn lock_len(&mut self) -> usize {
-        let mut locked_queue = self.queue.lock().unwrap();
+        let locked_queue = self.queue.lock().unwrap();
         locked_queue.len()
     }
 

@@ -6,6 +6,9 @@ use self::piston_window::*;
 extern crate rand;
 use self::rand::{SeedableRng, Rng, Isaac64Rng};
 
+
+extern crate find_folder;
+
 const WIDTH : f64 = 500.0;
 const HEIGHT : f64 = 400.0;
 
@@ -17,6 +20,17 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
                  client_out : Arc<ProtectedQueue<MsgToServer>>,
                  c_id : ClientID) {
     let mut window = init_window();
+
+
+    let assets = find_folder::Search::ParentsThenKids(3, 3)
+        .for_folder("assets").unwrap();
+    let test_path = assets.join("test.png");
+    let rust_logo: G2dTexture = Texture::from_path(
+            &mut window.factory,
+            &test_path,
+            Flip::None,
+            &TextureSettings::new()
+        ).unwrap();
 
     let mut next_eid = (c_id as u64 + 1) << 40; // this gives the server +40 bits of reserved eids
 
@@ -44,9 +58,13 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
 
     let mut mouse_at : Option<[f64 ; 2]> = None;
     while let Some(e) = window.next() {
+
         if let Some(_) = e.render_args() {
             window.draw_2d(&e, | _ , graphics| clear([0.0; 4], graphics));
             render_entities(&local_state, &e, &mut window, &controlling);
+            window.draw_2d(&e, |c, g| {
+                image(&rust_logo, c.transform, g);
+            });
         }
         if let Some(z) = e.mouse_cursor_args() {
             mouse_at = Some(z);

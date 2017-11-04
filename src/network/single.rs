@@ -1,12 +1,9 @@
-use std::sync::{Arc, Mutex, Condvar};
-use std::net::TcpListener;
-use std::error::Error;
+use std::sync::{Arc};
 use std::thread;
-use std::net::TcpStream;
 
 use super::{ProtectedQueue,MsgFromClient,MsgToClientSet,MsgToClient,MsgToServer};
 use super::SINGLE_PLAYER_CID;
-use super::super::engine::game_state::{EntityID,Point};
+use super::super::engine::game_state::Point;
 
 pub fn coupler_enter(server_in : Arc<ProtectedQueue<MsgFromClient>>,
                      server_out : Arc<ProtectedQueue<MsgToClientSet>>,

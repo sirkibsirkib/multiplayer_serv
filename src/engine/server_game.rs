@@ -1,5 +1,8 @@
 use super::game_state;
 use super::game_state::{GameState,EntityID,Entity,Point};
+use super::locations::{Location,LocationLoader};
+
+use std::time::Duration;
 use std::sync::Arc;
 use std::time;
 use std::collections::HashMap;
@@ -15,6 +18,9 @@ pub fn game_loop(mut global_state : GameState,
     let time_between_syncfloods = time::Duration::from_millis(3000);
 
     let mut player_controlling : HashMap<ClientID,Vec<EntityID>> = HashMap::new();
+
+    let mut location_loader = LocationLoader::new(Duration::new(10,0));
+
 
     let mut last_syncflood_at = time::Instant::now();
 
