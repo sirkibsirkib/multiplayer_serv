@@ -21,13 +21,12 @@ SERVER_ENGINE                  SERVER                    ||network
 NOTE: Does NOT consume caller thread
 */
 pub fn spawn_server(port : u16,
-                    password : Option<u64>,
                     server_in : Arc<ProtectedQueue<MsgFromClient>>,
                     server_out : Arc<ProtectedQueue<MsgToClientSet>>,
                 ) -> Result<(), &'static str> {
     if let Ok(listener) = TcpListener::bind(format!("127.0.0.1:{}", port)) {
         thread::spawn(move || {
-            server::server_enter(listener, password, server_in, server_out);
+            server::server_enter(listener, server_in, server_out);
         });
         Ok(())
     } else {
@@ -47,7 +46,6 @@ NOTE: Does NOT consume caller thread
 */
 pub fn spawn_client(host : &str,
                     port : u16,
-                    password : Option<u64>,
                     client_in : Arc<ProtectedQueue<MsgToClient>>,
                     client_out : Arc<ProtectedQueue<MsgToServer>>,
                 ) -> Result<ClientID, &'static Error> {
@@ -57,7 +55,7 @@ pub fn spawn_client(host : &str,
             //TODO password
 
             stream.set_read_timeout(None).is_ok();
-            let cid = client::client_instigate_handshake(&mut stream, password);
+            let cid = client::client_instigate_handshake(&mut stream);
             thread::spawn(move || {
                 client::client_enter(stream, client_in, client_out);
             });
@@ -90,9 +88,17 @@ pub fn spawn_coupler(server_in : Arc<ProtectedQueue<MsgFromClient>>,
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
+type BoundedString = [u8;32];
+
+pub fn bound_string(s : String) -> BoundedString {
+    let mut bounded : BoundedString = [0;32];
+    for (i, c) in s.into_bytes().into_iter().take(32).enumerate() {
+        bounded[i] = c;
+    }
+    bounded
+}
 
 pub type ClientID = u16;
-pub type Password = Option<u64>;
 pub const SINGLE_PLAYER_CID : ClientID = 0;
 
 //PRIMITIVE
@@ -102,7 +108,8 @@ pub enum MsgToServer {
     RelinquishControlof(EntityID),
     CreateEntity(EntityID,Point),
     ControlMoveTo(EntityID,Point),
-    StartHandshake(Password),
+    //username, password_hash
+    ClientLogin(BoundedString,BoundedString),
     LoadEntities, //client needs positions of entities in area
 }
 
@@ -113,8 +120,9 @@ pub enum MsgToClient {
     YouNowControl(EntityID),
     YouNoLongerControl(EntityID),
     EntityMoveTo(EntityID,Point),
-    CompleteHandshake(ClientID),
-    RefuseHandshake,
+    LoginSuccessful(ClientID),
+    BadUsername,
+    BadPassword,
 }
 
 
@@ -220,7 +228,7 @@ impl SingleStream for TcpStream {
             }
         }
         let num : usize = (&*buf).read_u32::<BigEndian>().unwrap() as usize;
-        println!("Received header.will not wait for {} bytes", num);
+        println!("Received header. will now wait for {} bytes", num);
         let msg_slice = &mut buf[..num];
         self.read_exact(msg_slice).expect("Failed to read exact");
         let stringy = ::std::str::from_utf8(msg_slice).expect("bytes to string");

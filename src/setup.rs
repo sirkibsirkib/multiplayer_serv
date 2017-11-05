@@ -9,14 +9,12 @@ pub enum RunMode {
 pub struct Config{
     maybe_state : Option<GameState>,
     run_mode : RunMode,
-    password : Option<u64>,
     port : Option<u16>,
     host : Option<String>,
 }
 
 impl Config {
     pub fn run_mode(&self) -> &RunMode {&self.run_mode}
-    pub fn password(&self) -> Option<u64> {self.password}
     pub fn port(&self) -> Option<u16> {self.port}
     pub fn host(&self) -> Option<String> {self.host.clone()}
     pub fn extract_state(self) -> Option<GameState> {self.maybe_state}
@@ -32,7 +30,6 @@ pub fn configure() -> Config {
             (@arg IP: -i --ip +takes_value "weefwfe")
             (@arg PORT: -p --port +takes_value "weefwfe")
             (@arg LOAD_PATH: -l --load_path +takes_value "weefwfe")
-            (@arg PASSWORD: -w --password +takes_value "rthrhtrth")
         ).get_matches();
 
 
@@ -47,10 +44,6 @@ pub fn configure() -> Config {
         run_mode : run_mode,
         maybe_state : match matches.value_of("load_path") {
             Some(s) => Some(GameState::load_from(s).unwrap()),
-            None => None,
-        },
-        password : match matches.value_of("PASSWORD") {
-            Some(s) => Some(s.parse().unwrap()),
             None => None,
         },
 

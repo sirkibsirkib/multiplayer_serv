@@ -1,0 +1,4 @@
+associate client ID with username
+//in-game client ID is all that matters
+//rename to player ID?
+//store mappings parmanently in a file

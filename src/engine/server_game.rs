@@ -64,9 +64,6 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
     if let Some(drained) = serv_in.impatient_drain() {
         for d in drained {
             match d.msg {
-                MsgToServer::StartHandshake(_)=> {
-                    //ignore
-                }
                 MsgToServer::LoadEntities => {
                     for e in global_state.entity_iterator() {
                         outgoing_updates.push(

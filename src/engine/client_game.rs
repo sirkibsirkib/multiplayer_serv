@@ -103,8 +103,6 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
         for d in drained {
             use MsgToClient::*;
             match d {
-                RefuseHandshake => {panic!()}
-                CompleteHandshake(_) => {},
                 CreateEntity(eid,pt) => {
                     local_state.add_entity(eid,Entity::new(pt))
                 },
@@ -119,6 +117,10 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
                 EntityMoveTo(eid,pt) => {
                     local_state.entity_move_to(eid,pt);
                 }
+                _ => {
+                    println!("Client engine got msg {:?} and didn't know how to deal", d);
+                    panic!();
+                },
             }
         }
     }

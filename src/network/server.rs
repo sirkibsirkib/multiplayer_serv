@@ -3,18 +3,15 @@ use std::thread;
 use std;
 use std::collections::HashMap;
 use std::io::prelude::Read;
-use std::io::Write;
 use std::net::{TcpStream,TcpListener};
-use super::{ProtectedQueue,MsgFromClient,MsgToClientSet,ClientID,MsgToServer,MsgToClient,Password};
+use super::{ProtectedQueue,MsgFromClient,MsgToClientSet,ClientID,MsgToServer,MsgToClient,BoundedString};
 use serde_json;
 use super::SingleStream;
-
-use serde::de::Deserialize;
-use serde::ser::Serialize;
+use super::bound_string;
+use std::fs::File;
 
 
 pub fn server_enter(listener : TcpListener,
-                    password : Password,
                     serv_in : Arc<ProtectedQueue<MsgFromClient>>,
                     serv_out : Arc<ProtectedQueue<MsgToClientSet>>,
                 ) {
@@ -22,16 +19,15 @@ pub fn server_enter(listener : TcpListener,
     //TODO password
     let streams = Arc::new(Mutex::new(HashMap::new()));
     let streams3 = streams.clone();
-    println!("Server enter begin. password of {:?}", &password);
+    println!("Server enter begin.");
 
     thread::spawn(move || {
-        listen_for_new_clients(listener, password, streams, serv_in);
+        listen_for_new_clients(listener, streams, serv_in);
     });
     serve_outgoing(streams3, serv_out);
 }
 
 fn listen_for_new_clients(listener : TcpListener,
-                          password : Password,
                           streams : Arc<Mutex<HashMap<ClientID,TcpStream>>>,
                           serv_in : Arc<ProtectedQueue<MsgFromClient>>,
                       ) {
@@ -40,7 +36,7 @@ fn listen_for_new_clients(listener : TcpListener,
         = Arc::new(ProtectedQueue::new());
     let unverified_connections2 = unverified_connections.clone();
     thread::spawn(move || {
-        verify_connections(unverified_connections2, password, streams, serv_in);
+        verify_connections(unverified_connections2, streams, serv_in);
     });
 
     println!("Server listening for clients");
@@ -53,8 +49,25 @@ fn listen_for_new_clients(listener : TcpListener,
     }
 }
 
+fn get_password_for_username(b : BoundedString) -> Option<BoundedString> {
+    let usrname_path = [
+        "./accounts/",
+        std::str::from_utf8(&b).unwrap().trim_matches(|x| x as u8 == 0),
+        ".txt"
+    ].join("");
+    println!("Looking for file in {}", &usrname_path);
+    if let Ok(mut f) = File::open(usrname_path) {
+        let mut contents = String::new();
+        f.read_to_string(&mut contents)
+            .expect("something went wrong reading the file");
+        Some(bound_string(contents))
+    } else {
+        //couldn't find this user's file
+        None
+    }
+}
+
 fn verify_connections(unverified : Arc<ProtectedQueue<TcpStream>>,
-                      password : Password,
                       streams : Arc<Mutex<HashMap<ClientID,TcpStream>>>,
                       serv_in : Arc<ProtectedQueue<MsgFromClient>>) {
     let mut next_cid : ClientID = 0;
@@ -66,15 +79,25 @@ fn verify_connections(unverified : Arc<ProtectedQueue<TcpStream>>,
             println!("Verifier thread handling a stream");
             //TODO instead of unwrap, use something else
             let msg : MsgToServer = stream.single_read(&mut buf).unwrap();
-            if let MsgToServer::StartHandshake(supplied_password) = msg {
-                if supplied_password != password {
-
-                    println!("Refusing client");
-                    stream.single_write(MsgToClient::RefuseHandshake);
+            if let MsgToServer::ClientLogin(username, password) = msg {
+                if let Some(stored_pass) = get_password_for_username(username) {
+                    if stored_pass == password {
+                        println!("ok username and password");
+                        stream.single_write(MsgToClient::LoginSuccessful(next_cid));
+                    } else {
+                        //mismatching password
+                        println!("Bad pass");
+                        stream.single_write(MsgToClient::BadPassword);
+                        break;
+                    }
+                } else {
+                    //didn't find user
+                    println!("bad username");
+                    stream.single_write(MsgToClient::BadUsername);
                     break;
                 }
                 println!("Accepting client. assigning CID {}", &next_cid);
-                stream.single_write(MsgToClient::CompleteHandshake(next_cid));
+
                 let stream_clone = stream.try_clone().expect("stream clone");
                 {
                     streams.lock().expect("line 82 lock").insert(next_cid, stream);

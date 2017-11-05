@@ -48,7 +48,6 @@ fn main() {
             let c_id = network::spawn_client(
                 &config.host().expect("Need to specify host!"),
                 config.port().expect("Need to specify port!"),
-                config.password(),
                 client_in,
                 client_out,
             ).expect("Failed to spawn client");
@@ -68,7 +67,6 @@ fn main() {
             //spawns a server in new threads.
             network::spawn_server(
                 config.port().expect("Need to specify port!"),
-                config.password(),
                 server_in,
                 server_out,
             ).expect("FAILED TO SPAWN SERVER");

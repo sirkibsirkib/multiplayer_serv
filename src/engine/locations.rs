@@ -3,6 +3,13 @@ use std::fs::File;
 use std::io::{Read,Write};
 use std::collections::HashMap;
 
+
+pub struct UniversalCoord {
+    lid : LocationID,
+    x : u32,
+    y : u32,
+}
+
 #[derive(Debug)]
 pub struct Location {
 
