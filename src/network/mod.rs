@@ -190,3 +190,46 @@ impl<T> ProtectedQueue<T> {
         x
     }
 }
+
+use serde_json;
+
+use serde::de::Deserialize;
+use serde::ser::Serialize;
+extern crate byteorder;
+use std::io::Write;
+use std::io::prelude::Read;
+
+use self::byteorder::{ReadBytesExt, WriteBytesExt, BigEndian, LittleEndian};
+
+trait SingleStream {
+    fn single_read<'a, S>(&mut self, buf : &'a mut [u8]) -> S where S : Deserialize<'a>;
+    fn single_write<S>(&mut self, s : S) where S : Serialize;
+}
+
+impl SingleStream for TcpStream {
+    fn single_read<'a, S>(&mut self, buf : &'a mut [u8]) -> S where S : Deserialize<'a> {
+        let mut bytes_read : usize = 0;
+        while bytes_read < 4 {
+            if let Ok(bytes) = self.read(&mut buf[bytes_read..]){
+                bytes_read += bytes;
+            }
+        }
+        let num : usize = (&*buf).read_u32::<BigEndian>().unwrap() as usize;
+        let msg_slice = &mut buf[4..4+num];
+        self.read_exact(msg_slice).expect("Failed to read exact");
+        let stringy = ::std::str::from_utf8(msg_slice).expect("bytes to string");
+        println!("got message of len {} : [{:?}]", num, stringy);
+        serde_json::from_str(&stringy).expect("verify connections to json")
+
+    }
+
+    fn single_write<S>(&mut self, s : S) where S : Serialize{
+        let stringy = serde_json::to_string(&s).expect("serde outgoing json ONLY");
+        let bytes = stringy.as_bytes();
+        let mut num : [u8;4] = [0;4];
+        println!("Writing {} bytes message `{}`", bytes.len(), &stringy);
+        (&mut num[..]).write_u32::<BigEndian>(bytes.len() as u32).is_ok();
+        self.write(&num).is_ok();
+        self.write(&bytes).is_ok();
+    }
+}

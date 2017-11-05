@@ -8,6 +8,9 @@ use std::net::{TcpStream,TcpListener};
 use super::{ProtectedQueue,MsgFromClient,MsgToClientSet,ClientID,MsgToServer,MsgToClient,Password};
 use serde_json;
 
+use serde::de::Deserialize;
+use serde::ser::Serialize;
+
 
 pub fn server_enter(listener : TcpListener,
                     password : Password,
