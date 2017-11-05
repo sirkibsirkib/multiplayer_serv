@@ -202,32 +202,50 @@ use std::io::prelude::Read;
 use self::byteorder::{ReadBytesExt, WriteBytesExt, BigEndian, LittleEndian};
 
 trait SingleStream {
-    fn single_read<'a, S>(&mut self, buf : &'a mut [u8]) -> S where S : Deserialize<'a>;
+    fn single_read<'a, S>(&mut self, buf : &'a mut [u8]) -> Option<S> where S : Deserialize<'a>;
     fn single_write<S>(&mut self, s : S) where S : Serialize;
+    fn single_write_bytes(&mut self, bytes : &[u8]);
 }
 
 impl SingleStream for TcpStream {
-    fn single_read<'a, S>(&mut self, buf : &'a mut [u8]) -> S where S : Deserialize<'a> {
+    fn single_read<'a, S>(&mut self, buf : &'a mut [u8]) -> Option<S> where S : Deserialize<'a> {
+        println!("STARTING SINGLE_READ");
         let mut bytes_read : usize = 0;
         while bytes_read < 4 {
-            if let Ok(bytes) = self.read(&mut buf[bytes_read..]){
+            if let Ok(bytes) = self.read(&mut buf[bytes_read..4]){
+                if bytes == 0 {
+                    return None;
+                }
                 bytes_read += bytes;
             }
         }
         let num : usize = (&*buf).read_u32::<BigEndian>().unwrap() as usize;
-        let msg_slice = &mut buf[4..4+num];
+        println!("Received header.will not wait for {} bytes", num);
+        let msg_slice = &mut buf[..num];
         self.read_exact(msg_slice).expect("Failed to read exact");
         let stringy = ::std::str::from_utf8(msg_slice).expect("bytes to string");
         println!("got message of len {} : [{:?}]", num, stringy);
-        serde_json::from_str(&stringy).expect("verify connections to json")
-
+        Some(
+            serde_json::from_str(&stringy)
+            .expect("verify connections to json")
+        )
     }
 
-    fn single_write<S>(&mut self, s : S) where S : Serialize{
+    fn single_write<S>(&mut self, s : S) where S : Serialize {
+        println!("STARTING SINGLE_WRITE");
         let stringy = serde_json::to_string(&s).expect("serde outgoing json ONLY");
         let bytes = stringy.as_bytes();
         let mut num : [u8;4] = [0;4];
         println!("Writing {} bytes message `{}`", bytes.len(), &stringy);
+        (&mut num[..]).write_u32::<BigEndian>(bytes.len() as u32).is_ok();
+        self.write(&num).is_ok();
+        self.write(&bytes).is_ok();
+    }
+
+    fn single_write_bytes(&mut self, bytes : &[u8]) {
+        println!("STARTING single_write_bytes");
+        let mut num : [u8;4] = [0;4];
+        println!("Writing {} bytes message {:?}", bytes.len(), String::from_utf8_lossy(&bytes));
         (&mut num[..]).write_u32::<BigEndian>(bytes.len() as u32).is_ok();
         self.write(&num).is_ok();
         self.write(&bytes).is_ok();

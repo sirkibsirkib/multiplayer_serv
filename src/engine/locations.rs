@@ -36,6 +36,7 @@ struct TimestampedLocation {
 pub struct LocationLoader {
     background : HashMap<LocationID, TimestampedLocation>,
     foreground : HashMap<LocationID, Location>,
+    unloaded_since : HashMap<LocationID, Instant>,
     background_retention : Duration,
 }
 
@@ -44,6 +45,9 @@ impl LocationLoader {
         LocationLoader {
             background : HashMap::new(),
             foreground : HashMap::new(),
+
+            // when it unloads a file, it logs a time. it will return the duration since then until you consume() it
+            unloaded_since : HashMap::new(),
             background_retention : background_retention,
         }
     }
@@ -85,9 +89,11 @@ impl LocationLoader {
                 remove_lids.push(*k);
             }
         }
+        let nowish = Instant::now();
         for lid in remove_lids {
             self.background.remove(&lid);
             println!("Unloading background LID{:?}", lid);
+            self.unloaded_since.insert(lid, nowish);
         }
     }
 
@@ -95,6 +101,15 @@ impl LocationLoader {
         self.foreground.contains_key(& lid)
         || self.background.contains_key(& lid)
     }
+
+    pub fn consume_unloaded_duration(&mut self, lid : LocationID) -> Option<Duration> {
+        if let Some(dur) = self.unloaded_since.remove(&lid) {
+            Some(dur.elapsed())
+        } else {
+            return None;
+        }
+    }
+
 
     pub fn foreground_iter_mut<'a>(&'a mut self) -> Box<Iterator<Item=(&mut Location)> + 'a> {
         Box::new(
