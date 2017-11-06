@@ -16,9 +16,14 @@ extern crate serde_derive;
 mod network;
 mod engine;
 mod setup;
+mod saving;
 
 use network::{ProtectedQueue,MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer,UserBase};
 use setup::RunMode;
+use saving::SaverLoader;
+
+use std::path::{Path,PathBuf};
+use std::fs::create_dir;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -69,8 +74,12 @@ fn main() {
             let server_out : Arc<ProtectedQueue<MsgToClientSet>> = Arc::new(ProtectedQueue::new());
             let server_out2 = server_out.clone();
 
-            let mut raw_userbase = UserBase::new();
+            let sl = SaverLoader::new(&config.save_dir().expect("NO SL DIR"));
+
+            let mut raw_userbase = load_user_base(&sl);
             raw_userbase.consume_registration_files("./registration_files/");
+            serde_json::to_string(&raw_userbase).expect("KAKKED ITSELF");
+            println!("OK2");
 
             let userbase : Arc<Mutex<UserBase>> = Arc::new(Mutex::new(raw_userbase));
             let userbase2 : Arc<Mutex<UserBase>> = userbase.clone();
@@ -83,8 +92,10 @@ fn main() {
                 userbase,
             ).expect("FAILED TO SPAWN SERVER");
 
+            let sl = SaverLoader::new(&config.save_dir().expect("NO SL DIR"));
+
             //consumes this thread to begin the game loop of the global game state aka `server game loop`
-            engine::server_engine(config.extract_state(), server_in2, server_out2, userbase2);
+            engine::server_engine(server_in2, server_out2, userbase2, sl);
         }
 
         &RunMode::SinglePlayer => {
@@ -104,20 +115,33 @@ fn main() {
             let client_out2 = client_out.clone();
 
 
-            let mut raw_userbase = UserBase::new();
+            let sl = SaverLoader::new(&config.save_dir().expect("NO SL DIR"));
+
+            let mut raw_userbase = load_user_base(&sl);
             raw_userbase.consume_registration_files("./registration_files/");
-            stdout().flush();
             //TODO register the one single user
             let userbase : Arc<Mutex<UserBase>> = Arc::new(Mutex::new(raw_userbase));
 
             //spawns a coupler in new threads.
             network::spawn_coupler(server_in, server_out, client_in, client_out);
             thread::spawn(move || {
-                engine::server_engine(config.extract_state(), server_in2, server_out2, userbase);
+                engine::server_engine(server_in2, server_out2, userbase, sl);
             });
             //consumes this thread to create client-side aka `local` game loop & engine
             //main thread == client thread. So if piston exists, everything exits
             engine::client_engine(client_in2, client_out2, network::SINGLE_PLAYER_CID)
         }
+    }
+}
+
+fn load_user_base(sl : &SaverLoader) -> UserBase {
+    if let Ok(loaded) = sl.load_me::<UserBase>("user_base.lel") {
+        println!("loaded userbase file! {:?}", &loaded);
+        loaded
+    } else {
+        let u = UserBase::new();
+        sl.save_me(&u, "user_base.lel");
+        println!("Created fresh userbase save");
+        u
     }
 }

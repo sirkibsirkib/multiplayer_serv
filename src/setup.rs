@@ -1,4 +1,11 @@
 use super::engine::game_state::GameState;
+use super::network::UserBase;
+
+use super::saving;
+// use saving::SaveLoad;
+use std::path::{Path,PathBuf};
+use std::fs::File;
+use std;
 
 pub enum RunMode {
     ClientPlayer,
@@ -6,8 +13,11 @@ pub enum RunMode {
     SinglePlayer,
 }
 
+type SavedGame = (UserBase);
+
 pub struct Config{
-    maybe_state : Option<GameState>,
+    // maybe_save_game : Option<SavedGame>,
+    maybe_save_dir : Option<String>,
     run_mode : RunMode,
     port : Option<u16>,
     host : Option<String>,
@@ -17,7 +27,7 @@ impl Config {
     pub fn run_mode(&self) -> &RunMode {&self.run_mode}
     pub fn port(&self) -> Option<u16> {self.port}
     pub fn host(&self) -> Option<String> {self.host.clone()}
-    pub fn extract_state(self) -> Option<GameState> {self.maybe_state}
+    pub fn save_dir(&self) -> Option<String> {self.maybe_save_dir.to_owned()}
 }
 
 pub fn configure() -> Config {
@@ -29,7 +39,7 @@ pub fn configure() -> Config {
             (@arg RUN_MODE: +required +takes_value "either `client`, `server` or `single`")
             (@arg IP: -i --ip +takes_value "weefwfe")
             (@arg PORT: -p --port +takes_value "weefwfe")
-            (@arg LOAD_PATH: -l --load_path +takes_value "weefwfe")
+            (@arg SAVE_PATH: -s --save_path +takes_value "The path to the dir this game's data. Will load from there and save to there.")
         ).get_matches();
 
 
@@ -42,8 +52,16 @@ pub fn configure() -> Config {
 
     Config{
         run_mode : run_mode,
-        maybe_state : match matches.value_of("load_path") {
-            Some(s) => Some(GameState::load_from(s).unwrap()),
+        maybe_save_dir : match matches.value_of("SAVE_PATH") {
+            Some(save_dir) => {
+                Some(
+                    save_dir.to_owned()
+                )
+                // let p : PathBuf = Path::new(save_dir).to_path_buf();
+                // Some(
+                //     Box::new(p)
+                // )
+            },
             None => None,
         },
 

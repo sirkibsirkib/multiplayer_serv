@@ -6,19 +6,17 @@ use std::collections::HashMap;
 pub const UPDATES_PER_SEC : u64 = 32;
 
 
+
 pub struct GameState {
     entities : HashMap<EntityID, Entity>,
 }
+
 
 impl GameState {
     pub fn new() -> GameState {
         GameState {
             entities : HashMap::new(),
         }
-    }
-
-    pub fn load_from(path : &str) -> Result<GameState, &'static Error> {
-        unimplemented!()
     }
 
     pub fn entity_exists(&self, eid : EntityID) -> bool {

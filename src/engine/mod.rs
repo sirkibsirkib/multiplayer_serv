@@ -5,8 +5,10 @@ mod locations;
 
 use std::sync::{Arc,Mutex};
 use network::{ProtectedQueue,MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer,ClientID,UserBase};
+use std::path::PathBuf;
 
 use self::game_state::GameState;
+use super::saving::SaverLoader;
 
 
 
@@ -14,17 +16,12 @@ use self::game_state::GameState;
 //NOTE consumes caller thread
 Manages the shared game state
 */
-pub fn server_engine(initial_state : Option<GameState>,
-                    serv_in : Arc<ProtectedQueue<MsgFromClient>>,
+pub fn server_engine(serv_in : Arc<ProtectedQueue<MsgFromClient>>,
                     serv_out : Arc<ProtectedQueue<MsgToClientSet>>,
                     userbase : Arc<Mutex<UserBase>>,
+                    sl : SaverLoader,
                 ) {
-    let global_state = if let Some(s) = initial_state {
-        s
-    } else {
-        GameState::new()
-    };
-    server_game::game_loop(global_state, serv_in, serv_out);
+    server_game::game_loop(serv_in, serv_out, userbase, sl);
 }
 
 /*

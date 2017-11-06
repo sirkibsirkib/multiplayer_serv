@@ -3,21 +3,31 @@ use super::game_state::{GameState,EntityID,Entity,Point};
 use super::locations::{Location,LocationLoader};
 
 use std::time::Duration;
-use std::sync::Arc;
+use std::sync::{Arc,Mutex};
 use std::time;
 use std::collections::HashMap;
-use super::super::network::{ProtectedQueue,MsgFromClient,MsgToClientSet,ClientID,MsgToClient,MsgToServer};
+use super::super::network::{ProtectedQueue,MsgFromClient,MsgToClientSet,ClientID,MsgToClient,MsgToServer,UserBase};
 use std::thread;
+use std::path::Path;
+use std;
 
-pub fn game_loop(mut global_state : GameState,
-                 serv_in : Arc<ProtectedQueue<MsgFromClient>>,
-                 serv_out : Arc<ProtectedQueue<MsgToClientSet>>) {
+use super::SaverLoader;
+
+
+pub fn game_loop(serv_in : Arc<ProtectedQueue<MsgFromClient>>,
+                 serv_out : Arc<ProtectedQueue<MsgToClientSet>>,
+                 userbase : Arc<Mutex<UserBase>>,
+                 sl : SaverLoader,
+             ) {
     println!("Server game loop");
+
+    let mut global_state : GameState = GameState::new();
+
     //comment
     let time_between_updates = time::Duration::from_millis(1000/game_state::UPDATES_PER_SEC);
 
-    println!("TIME BETWEEN SYNCHFLOODS INFLATED FOR TESTING OK?", );
-    let time_between_syncfloods = time::Duration::from_millis(300000);
+    // println!("TIME BETWEEN SYNCHFLOODS INFLATED FOR TESTING OK?", );
+    let time_between_syncfloods = time::Duration::from_millis(3000);
 
     let mut player_controlling : HashMap<ClientID,Vec<EntityID>> = HashMap::new();
 
@@ -32,6 +42,10 @@ pub fn game_loop(mut global_state : GameState,
         if last_syncflood_at.elapsed() > time_between_syncfloods {
             last_syncflood_at = update_start;
             synchflood(&serv_out, &global_state);
+
+            println!("SAVING FOR TESTING PURPOSES");
+            let u : &UserBase = &userbase.lock().unwrap();
+            sl.save_me(u, "user_base.lel").expect("couldn't save user base!");
         }
 
         update_step(&serv_in, &serv_out, &mut global_state, &mut player_controlling);

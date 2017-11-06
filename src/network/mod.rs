@@ -286,7 +286,11 @@ pub struct UserBase {
     next_avail_cid : ClientID,
 }
 
+// use super::saving::SaveLoad;
+// impl<'a> SaveLoad<'a> for UserBase{}
+
 impl UserBase {
+
     pub fn new() -> UserBase {
         UserBase {
             cid_to_username : HashMap::new(),
