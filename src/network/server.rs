@@ -66,7 +66,7 @@ fn verify_connections(unverified : Arc<ProtectedQueue<TcpStream>>,
             //TODO instead of unwrap, use something else
             let msg : MsgToServer = stream.single_read(&mut buf).unwrap();
 
-            userbase.lock().unwrap().consume_registration_files(&sl.relative_path("./registration_files/"));
+            userbase.lock().unwrap().consume_registration_files(&sl.relative_path(UserBase::REGISTER_PATH));
 
             if let MsgToServer::ClientLogin(username, password) = msg {
                 match userbase.lock().unwrap().login(username, password) {

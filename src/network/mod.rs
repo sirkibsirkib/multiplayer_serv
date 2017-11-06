@@ -299,6 +299,8 @@ pub struct UserBase {
 
 impl UserBase {
 
+    pub const REGISTER_PATH: &'static str = "users_to_register/";
+
     pub fn new() -> UserBase {
         UserBase {
             cid_to_username : HashMap::new(),
@@ -320,7 +322,7 @@ impl UserBase {
 
     pub fn consume_registration_files(&mut self, path : &Path) {
         println!("CONSUMING consume_registration_files");
-        let paths = fs::read_dir(path).unwrap();
+        let paths = fs::read_dir(path).expect("Couldn't find relative");
         for path in paths {
             if let Ok(okpath) = path {
                 if let Ok(mut file) = fs::File::open(&okpath.path()) {

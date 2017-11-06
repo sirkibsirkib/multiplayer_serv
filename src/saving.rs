@@ -28,7 +28,7 @@ impl SaverLoader {
         };
         me.ensure_folder_exists("./");
         me.ensure_folder_exists("locations/");
-        me.ensure_folder_exists("users_to_register/");
+        me.ensure_folder_exists(UserBase::REGISTER_PATH);
         me
     }
 

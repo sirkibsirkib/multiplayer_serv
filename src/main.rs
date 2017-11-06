@@ -75,7 +75,7 @@ fn main() {
             let mut raw_userbase = load_user_base(&sl);
 
             //put file into this directory to register a new user
-            raw_userbase.consume_registration_files(&sl.relative_path("./registration_files/"));
+            raw_userbase.consume_registration_files(&sl.relative_path(UserBase::REGISTER_PATH));
 
             let userbase : Arc<Mutex<UserBase>> = Arc::new(Mutex::new(raw_userbase));
             let userbase2 : Arc<Mutex<UserBase>> = userbase.clone();
@@ -115,7 +115,7 @@ fn main() {
             let sl = SaverLoader::new(&config.save_dir().expect("NO SL DIR"));
 
             let mut raw_userbase = load_user_base(&sl);
-            raw_userbase.consume_registration_files(&sl.relative_path("./registration_files/"));
+            raw_userbase.consume_registration_files(&sl.relative_path(UserBase::REGISTER_PATH));
             //TODO register the one single user
             let userbase : Arc<Mutex<UserBase>> = Arc::new(Mutex::new(raw_userbase));
 
