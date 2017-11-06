@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::io::prelude::Read;
 use std::net::{TcpStream,TcpListener};
 use super::{ProtectedQueue,MsgFromClient,MsgToClientSet,ClientID,MsgToServer,MsgToClient,BoundedString,UserBase,UserBaseError};
-use serde_json;
+use bincode;
 use super::SingleStream;
 use super::bound_string;
 use std::fs::File;
@@ -51,24 +51,6 @@ fn listen_for_new_clients(listener : TcpListener,
         unverified_connections.lock_push_notify(stream);
     }
 }
-//
-// fn get_password_for_username(b : BoundedString) -> Option<BoundedString> {
-//     let usrname_path = [
-//         "./accounts/user_credentials/",
-//         std::str::from_utf8(&b).unwrap().trim_matches(|x| x as u8 == 0),
-//         ".txt"
-//     ].join("");
-//     println!("Looking for file in {}", &usrname_path);
-//     if let Ok(mut f) = File::open(usrname_path) {
-//         let mut contents = String::new();
-//         f.read_to_string(&mut contents)
-//             .expect("something went wrong reading the file");
-//         Some(bound_string(contents))
-//     } else {
-//         //couldn't find this user's file
-//         None
-//     }
-// }
 
 fn verify_connections(unverified : Arc<ProtectedQueue<TcpStream>>,
                       streams : Arc<Mutex<HashMap<ClientID,TcpStream>>>,
@@ -149,11 +131,12 @@ fn serve_outgoing(streams : Arc<Mutex<HashMap<ClientID,TcpStream>>>,
                     },
                     MsgToClientSet::All(msg) => {
                         println!("server outgoing write of {:?} to ALL", &msg);
-                        let temp = serde_json::to_string(&msg)
-                                    .expect("serde outgoing json ALL");
-                        let msg_bytes : &[u8] = temp.as_bytes();
+                        let msg_bytes = bincode::serialize(&msg, bincode::Infinite).expect("ech");
+                        // let temp = serde_json::to_string(&msg)
+                        //             .expect("serde outgoing json ALL");
+                        // let msg_bytes : &[u8] = temp.as_bytes();
                         for stream in locked_streams.values_mut() {
-                            stream.single_write_bytes(msg_bytes);
+                            stream.single_write_bytes(&msg_bytes);
                         }
                     },
                 }

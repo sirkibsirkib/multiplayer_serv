@@ -2,9 +2,10 @@ use std::io;
 use std::io::prelude::*;
 use std::fs::File;
 
-use serde::{Serialize,Deserialize};
+use serde::Serialize;
 use serde::de::DeserializeOwned;
-use serde_json;
+use bincode;
+// use serde_json;
 use std::path::{Path,PathBuf};
 use std::io::{ErrorKind,Error};
 use std::fs::create_dir;
@@ -33,9 +34,8 @@ impl SaverLoader {
         let mut f = File::create(absolute_path)?;
         println!("attempting to serialize & save {:?}", &x);
         f.write_all(
-            serde_json::to_string(x)
+            & bincode::serialize(x, bincode::Infinite)
             .expect("couldn't serialize for saving.rs!")
-            .as_bytes()
         )?;
         Ok(())
     }
@@ -44,9 +44,9 @@ impl SaverLoader {
     where X : DeserializeOwned {
         let absolute_path = self.save_dir.join(Path::new(file));
         let mut f = File::open(absolute_path)?;
-        let mut buffer = String::new();
-        f.read_to_string(&mut buffer)?;
-        let z = serde_json::from_str(&buffer);
+        let mut buffer = vec![];
+        f.read_to_end(&mut buffer)?;
+        let z = bincode::deserialize(&buffer);
         if let Ok(x) = z {
             Ok(x)
         } else {
@@ -54,41 +54,3 @@ impl SaverLoader {
         }
     }
 }
-
-
-// pub trait SaveLoad<'a> : Serialize + Deserialize<'a> {
-//     fn save_to(&self, dir : &Path, filename : &str) -> Result<(), io::Error> ;
-//
-//     fn load_from(dir : &Path, filename : &str) -> Result<Self, io::Error> ;
-//
-//     fn resolve_path(dir : &Path, filename : &str) -> PathBuf ;
-// }
-//
-// impl<'a> SaveLoad<'a> for super::network::UserBase {
-//     fn save_to(&self, dir : &Path, filename : &str) -> Result<(), io::Error> {
-//         let mut f = File::create(Self::resolve_path(dir, filename))?;
-//         f.write_all(
-//             serde_json::to_string(self)
-//             .expect("couldn't serialize for saving.rs!")
-//             .as_bytes()
-//         )?;
-//         Ok(())
-//     }
-//
-//     fn load_from(dir : &Path, filename : &str) -> Result<Self, io::Error> {
-//         let mut f = File::open(Self::resolve_path(dir, filename))?;
-//         let mut buffer = String::new();
-//         f.read_to_string(&mut buffer)?;
-//         let z = serde_json::from_str(&buffer);
-//         if let Ok(x) = z {
-//             Ok(x)
-//         } else {
-//             Err(Error::new(ErrorKind::Other, "oh no!"))
-//         }
-//     }
-//
-//     #[inline]
-//     fn resolve_path(dir : &Path, filename : &str) -> PathBuf {
-//         dir.join(Path::new(filename))
-//     }
-// }

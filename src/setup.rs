@@ -1,11 +1,5 @@
-use super::engine::game_state::GameState;
 use super::network::UserBase;
-
-use super::saving;
-// use saving::SaveLoad;
 use std::path::{Path,PathBuf};
-use std::fs::File;
-use std;
 
 pub enum RunMode {
     ClientPlayer,
@@ -13,7 +7,6 @@ pub enum RunMode {
     SinglePlayer,
 }
 
-type SavedGame = (UserBase);
 
 pub struct Config{
     // maybe_save_game : Option<SavedGame>,
@@ -57,10 +50,6 @@ pub fn configure() -> Config {
                 Some(
                     save_dir.to_owned()
                 )
-                // let p : PathBuf = Path::new(save_dir).to_path_buf();
-                // Some(
-                //     Box::new(p)
-                // )
             },
             None => None,
         },

@@ -7,9 +7,10 @@ use std::io::Write;
 extern crate clap;
 
 extern crate serde;
-extern crate serde_json;
+// extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
+extern crate bincode;
 
 // extern crate bidir_map;
 
@@ -22,8 +23,7 @@ use network::{ProtectedQueue,MsgToClientSet,MsgFromClient,MsgToClient,MsgToServe
 use setup::RunMode;
 use saving::SaverLoader;
 
-use std::path::{Path,PathBuf};
-use std::fs::create_dir;
+use std::path::PathBuf;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -77,9 +77,9 @@ fn main() {
             let sl = SaverLoader::new(&config.save_dir().expect("NO SL DIR"));
 
             let mut raw_userbase = load_user_base(&sl);
+
+            //put file into this directory to register a new user
             raw_userbase.consume_registration_files("./registration_files/");
-            serde_json::to_string(&raw_userbase).expect("KAKKED ITSELF");
-            println!("OK2");
 
             let userbase : Arc<Mutex<UserBase>> = Arc::new(Mutex::new(raw_userbase));
             let userbase2 : Arc<Mutex<UserBase>> = userbase.clone();
@@ -135,12 +135,13 @@ fn main() {
 }
 
 fn load_user_base(sl : &SaverLoader) -> UserBase {
-    if let Ok(loaded) = sl.load_me::<UserBase>("user_base.lel") {
+    if let Ok(mut loaded) = sl.load_me::<UserBase>("user_base.lel") {
         println!("loaded userbase file! {:?}", &loaded);
+        loaded.log_everyone_out();
         loaded
     } else {
         let u = UserBase::new();
-        sl.save_me(&u, "user_base.lel");
+        sl.save_me(&u, "user_base.lel").expect("Save went bad!");
         println!("Created fresh userbase save");
         u
     }

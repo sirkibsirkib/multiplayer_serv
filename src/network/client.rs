@@ -4,7 +4,7 @@ use std::io::Write;
 use std::io::prelude::Read;
 use std::net::TcpStream;
 use std::thread;
-use serde_json;
+use bincode;
 use std::time;
 use std::io::{stdin,stdout};
 use super::bound_string;
@@ -48,9 +48,10 @@ pub fn client_instigate_handshake(stream : &mut TcpStream) -> ClientID {
     let password = bound_string(get_user_string());
 
     //pre-build password bytes
-    let password_msg = serde_json::to_string(&MsgToServer::ClientLogin(username, password)).expect("handshake to str");
-    let password_bytes = password_msg.as_bytes();
-    stream.single_write_bytes(password_bytes);
+    // let password_msg = serde_json::to_string(&MsgToServer::ClientLogin(username, password)).expect("handshake to str");
+    let password_bytes = bincode::serialize(&MsgToServer::ClientLogin(username, password), bincode::Infinite).expect("ser handshake");
+    // let password_bytes = password_msg.as_bytes();
+    stream.single_write_bytes(&password_bytes);
 
     loop {
         if let Some(msg) = stream.single_read(&mut buf){
@@ -70,7 +71,7 @@ pub fn client_instigate_handshake(stream : &mut TcpStream) -> ClientID {
         } else {
             // timeout. resending
             //TODO it should never timeout as packets won't get lost
-            stream.single_write_bytes(password_bytes);
+            stream.single_write_bytes(&password_bytes);
         }
     }
 }

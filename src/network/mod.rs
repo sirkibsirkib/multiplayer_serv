@@ -8,6 +8,9 @@ use std;
 
 // use super::bidir_map::BidirMap;
 use std::collections::HashMap;
+use bincode::{serialize, deserialize, Infinite};
+use bincode;
+use serde::{Serialize,Deserialize};
 
 use super::engine::game_state::{EntityID,Point};
 
@@ -213,15 +216,15 @@ impl<T> ProtectedQueue<T> {
     }
 }
 
-use serde_json;
+// use serde_json;
 
-use serde::de::Deserialize;
-use serde::ser::Serialize;
+// use serde::de::Deserialize;
+// use serde::ser::Serialize;
 extern crate byteorder;
 use std::io::Write;
 use std::io::prelude::Read;
 
-use self::byteorder::{ReadBytesExt, WriteBytesExt, BigEndian, LittleEndian};
+use self::byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 
 trait SingleStream {
     fn single_read<'a, S>(&mut self, buf : &'a mut [u8]) -> Option<S> where S : Deserialize<'a>;
@@ -245,20 +248,23 @@ impl SingleStream for TcpStream {
         println!("Received header. will now wait for {} bytes", num);
         let msg_slice = &mut buf[..num];
         self.read_exact(msg_slice).expect("Failed to read exact");
-        let stringy = ::std::str::from_utf8(msg_slice).expect("bytes to string");
-        println!("got message of len {} : [{:?}]", num, stringy);
+        let got : S = bincode::deserialize(msg_slice).expect("deser didnt go ok");
+        // let stringy = ::std::str::from_utf8(msg_slice).expect("bytes to string");
+        // println!("got message of len {} : [{:?}]", num, stringy);
         Some(
-            serde_json::from_str(&stringy)
-            .expect("verify connections to json")
+            // serde_json::from_str(&stringy)
+            // .expect("verify connections to json")
+            got
         )
     }
 
     fn single_write<S>(&mut self, s : S) where S : Serialize {
         println!("STARTING SINGLE_WRITE");
-        let stringy = serde_json::to_string(&s).expect("serde outgoing json ONLY");
-        let bytes = stringy.as_bytes();
+        // let stringy = serde_json::to_string(&s).expect("serde outgoing json ONLY");
+        // let bytes = stringy.as_bytes();
+        let bytes = bincode::serialize(&s, bincode::Infinite).expect("went kk lel");
         let mut num : [u8;4] = [0;4];
-        println!("Writing {} bytes message `{}`", bytes.len(), &stringy);
+        // println!("Writing {} bytes message `{}`", bytes.len(), &stringy);
         (&mut num[..]).write_u32::<BigEndian>(bytes.len() as u32).is_ok();
         self.write(&num).is_ok();
         self.write(&bytes).is_ok();
@@ -358,6 +364,12 @@ impl UserBase {
 
     fn is_logged_in(&self, cid : ClientID) -> bool {
         self.logged_in.get(&cid) == Some(&true)
+    }
+
+    // USED WHEN LOADED
+    //TODO just make serialization omit this field
+    pub fn log_everyone_out(&mut self) {
+        self.logged_in.clear();
     }
 
     pub fn login(&mut self, username : BoundedString, password : BoundedString) -> Result<ClientID,UserBaseError> {
