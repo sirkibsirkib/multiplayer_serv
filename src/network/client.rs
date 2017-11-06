@@ -1,14 +1,13 @@
-use super::{ProtectedQueue,MsgToClient,MsgToServer,ClientID,BoundedString};
+use super::{ProtectedQueue,MsgToClient,MsgToServer,ClientID};
 use std::sync::Arc;
 use std::io::Write;
-use std::io::prelude::Read;
 use std::net::TcpStream;
 use std::thread;
 use bincode;
 use std::time;
 use std::io::{stdin,stdout};
 use super::bound_string;
-use std;
+use super::UserBaseError;
 
 use super::SingleStream;
 
@@ -60,9 +59,9 @@ pub fn client_instigate_handshake(stream : &mut TcpStream) -> ClientID {
                 return cid
             } else if let MsgToClient::LoginFailure(ub_error) = msg {
                 match ub_error {
-                    AlreadyLoggedIn => panic!("You are already logged in!"),
-                    UnknownUsername => panic!("Unknown username! Register first"),
-                    WrongPassword => panic!("Password doesn't match"),
+                    UserBaseError::AlreadyLoggedIn => panic!("You are already logged in!"),
+                    UserBaseError::UnknownUsername => panic!("Unknown username! Register first"),
+                    UserBaseError::WrongPassword => panic!("Password doesn't match"),
                 }
 
             } else {

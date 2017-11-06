@@ -8,9 +8,6 @@ use std::time;
 use std::collections::HashMap;
 use super::super::network::{ProtectedQueue,MsgFromClient,MsgToClientSet,ClientID,MsgToClient,MsgToServer,UserBase};
 use std::thread;
-use std::path::Path;
-use std;
-
 use super::SaverLoader;
 
 
@@ -31,7 +28,7 @@ pub fn game_loop(serv_in : Arc<ProtectedQueue<MsgFromClient>>,
 
     let mut player_controlling : HashMap<ClientID,Vec<EntityID>> = HashMap::new();
 
-    let mut location_loader = LocationLoader::new(Duration::new(10,0));
+    let mut location_loader = LocationLoader::new(Duration::new(10,0), sl.clone());
 
 
     let mut last_syncflood_at = time::Instant::now();

@@ -3,7 +3,6 @@ use std::thread;
 
 use super::{ProtectedQueue,MsgFromClient,MsgToClientSet,MsgToClient,MsgToServer};
 use super::SINGLE_PLAYER_CID;
-use super::super::engine::game_state::Point;
 
 pub fn coupler_enter(server_in : Arc<ProtectedQueue<MsgFromClient>>,
                      server_out : Arc<ProtectedQueue<MsgToClientSet>>,

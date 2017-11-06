@@ -1,14 +1,10 @@
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std;
 use std::collections::HashMap;
-use std::io::prelude::Read;
 use std::net::{TcpStream,TcpListener};
-use super::{ProtectedQueue,MsgFromClient,MsgToClientSet,ClientID,MsgToServer,MsgToClient,BoundedString,UserBase,UserBaseError};
+use super::{ProtectedQueue,MsgFromClient,MsgToClientSet,ClientID,MsgToServer,MsgToClient,UserBase};
 use bincode;
 use super::SingleStream;
-use super::bound_string;
-use std::fs::File;
 
 
 
@@ -132,9 +128,6 @@ fn serve_outgoing(streams : Arc<Mutex<HashMap<ClientID,TcpStream>>>,
                     MsgToClientSet::All(msg) => {
                         println!("server outgoing write of {:?} to ALL", &msg);
                         let msg_bytes = bincode::serialize(&msg, bincode::Infinite).expect("ech");
-                        // let temp = serde_json::to_string(&msg)
-                        //             .expect("serde outgoing json ALL");
-                        // let msg_bytes : &[u8] = temp.as_bytes();
                         for stream in locked_streams.values_mut() {
                             stream.single_write_bytes(&msg_bytes);
                         }

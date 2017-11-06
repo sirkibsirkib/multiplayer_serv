@@ -8,7 +8,6 @@ use std;
 
 // use super::bidir_map::BidirMap;
 use std::collections::HashMap;
-use bincode::{serialize, deserialize, Infinite};
 use bincode;
 use serde::{Serialize,Deserialize};
 
@@ -343,6 +342,7 @@ impl UserBase {
                         }
                     }
                 }
+                let _ = fs::remove_file(&okpath.path());
             }
         }
     }

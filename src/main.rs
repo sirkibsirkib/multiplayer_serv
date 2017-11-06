@@ -1,7 +1,5 @@
 use std::sync::{Arc,Mutex};
 use std::thread;
-use std::io::stdout;
-use std::io::Write;
 
 #[macro_use]
 extern crate clap;
@@ -22,8 +20,6 @@ mod saving;
 use network::{ProtectedQueue,MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer,UserBase};
 use setup::RunMode;
 use saving::SaverLoader;
-
-use std::path::PathBuf;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 

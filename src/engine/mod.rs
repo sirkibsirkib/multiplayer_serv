@@ -5,11 +5,8 @@ mod locations;
 
 use std::sync::{Arc,Mutex};
 use network::{ProtectedQueue,MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer,ClientID,UserBase};
-use std::path::PathBuf;
 
-use self::game_state::GameState;
 use super::saving::SaverLoader;
-
 
 
 /*

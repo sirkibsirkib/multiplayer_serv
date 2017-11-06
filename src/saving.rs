@@ -11,7 +11,7 @@ use std::io::{ErrorKind,Error};
 use std::fs::create_dir;
 use std::fmt::Debug;
 
-
+#[derive(Clone)]
 pub struct SaverLoader {
     save_dir : Box<PathBuf>,
 }
@@ -32,7 +32,6 @@ impl SaverLoader {
     where X : Serialize + Debug {
         let absolute_path = self.save_dir.join(Path::new(file));
         let mut f = File::create(absolute_path)?;
-        println!("attempting to serialize & save {:?}", &x);
         f.write_all(
             & bincode::serialize(x, bincode::Infinite)
             .expect("couldn't serialize for saving.rs!")

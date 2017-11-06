@@ -2,6 +2,7 @@ use std::time::{Instant,Duration};
 use std::fs::File;
 use std::io::{Read,Write};
 use std::collections::HashMap;
+use super::SaverLoader;
 
 
 pub struct UniversalCoord {
@@ -41,6 +42,7 @@ struct TimestampedLocation {
 }
 
 pub struct LocationLoader {
+    sl : SaverLoader,
     background : HashMap<LocationID, TimestampedLocation>,
     foreground : HashMap<LocationID, Location>,
     unloaded_since : HashMap<LocationID, Instant>,
@@ -48,8 +50,9 @@ pub struct LocationLoader {
 }
 
 impl LocationLoader {
-    pub fn new(background_retention : Duration) -> LocationLoader {
+    pub fn new(background_retention : Duration, sl : SaverLoader) -> LocationLoader {
         LocationLoader {
+            sl : sl,
             background : HashMap::new(),
             foreground : HashMap::new(),
 
