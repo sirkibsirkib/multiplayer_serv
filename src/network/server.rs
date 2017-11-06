@@ -64,17 +64,17 @@ fn verify_connections(unverified : Arc<ProtectedQueue<TcpStream>>,
         for mut stream in drained {
             println!("Verifier thread handling a stream");
             //TODO instead of unwrap, use something else
-            let msg : MsgToServer = stream.single_read(&mut buf).unwrap();
+            let msg : MsgToServer = stream.single_read(&mut buf).expect("DISCONNECT MAYBE 4").unwrap();
 
             userbase.lock().unwrap().consume_registration_files(&sl.relative_path(UserBase::REGISTER_PATH));
 
             if let MsgToServer::ClientLogin(username, password) = msg {
                 match userbase.lock().unwrap().login(username, password) {
                     Err(ub_error) => {
-                        stream.single_write(MsgToClient::LoginFailure(ub_error));
+                        stream.single_write(MsgToClient::LoginFailure(ub_error)).expect("DISCONNECT MAYBE 5");
                     },
                     Ok(cid) => {
-                        stream.single_write(MsgToClient::LoginSuccessful(cid));
+                        stream.single_write(MsgToClient::LoginSuccessful(cid)).expect("DISCONNECT MAYBE 6");
                         let stream_clone = stream.try_clone().expect("stream clone");
                         {
                             streams.lock().expect("line 82 lock").insert(cid, stream);
@@ -99,6 +99,7 @@ fn serve_incoming(c_id : ClientID,
     loop {
         //blocks until something is there
         let msg : MsgToServer = stream.single_read(&mut buf)
+                                .expect("DISCONNECT MAYBE 2")
                                 .expect("couldn't unwrap single server:107");
         println!("server incoming read of {:?} from {:?}", &msg, &c_id);
         serv_in.lock_push_notify(MsgFromClient{msg:msg, cid:c_id})
@@ -126,14 +127,14 @@ fn serve_outgoing(streams : Arc<Mutex<HashMap<ClientID,TcpStream>>>,
                     MsgToClientSet::Only(msg, c_id) => {
                         if let Some(stream) = locked_streams.get_mut(&c_id){
                             println!("server outgoing write of {:?} to {:?}", &msg, &c_id);
-                            stream.single_write(msg);
+                            stream.single_write(msg).expect("DISCONNECT MAYBE 7");
                         }
                     },
                     MsgToClientSet::All(msg) => {
                         println!("server outgoing write of {:?} to ALL", &msg);
                         let msg_bytes = bincode::serialize(&msg, bincode::Infinite).expect("ech");
                         for stream in locked_streams.values_mut() {
-                            stream.single_write_bytes(&msg_bytes);
+                            stream.single_write_bytes(&msg_bytes).expect("DISCONNECT MAYBE 8");
                         }
                     },
                 }

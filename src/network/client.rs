@@ -50,10 +50,10 @@ pub fn client_instigate_handshake(stream : &mut TcpStream) -> ClientID {
     // let password_msg = serde_json::to_string(&MsgToServer::ClientLogin(username, password)).expect("handshake to str");
     let password_bytes = bincode::serialize(&MsgToServer::ClientLogin(username, password), bincode::Infinite).expect("ser handshake");
     // let password_bytes = password_msg.as_bytes();
-    stream.single_write_bytes(&password_bytes);
+    stream.single_write_bytes(&password_bytes).expect("DISCONNECT MAYBE 9");
 
     loop {
-        if let Some(msg) = stream.single_read(&mut buf){
+        if let Some(msg) = stream.single_read(&mut buf).expect("DISCONNECT MAYBE 0") {
             if let MsgToClient::LoginSuccessful(cid) = msg {
                 stream.set_read_timeout(None).is_ok();
                 return cid
@@ -70,7 +70,7 @@ pub fn client_instigate_handshake(stream : &mut TcpStream) -> ClientID {
         } else {
             // timeout. resending
             //TODO it should never timeout as packets won't get lost
-            stream.single_write_bytes(&password_bytes);
+            stream.single_write_bytes(&password_bytes).expect("DISCONNECT MAYBE 8");
         }
     }
 }
@@ -80,7 +80,7 @@ fn client_incoming(mut stream : TcpStream, client_in : Arc<ProtectedQueue<MsgToC
     let mut buf = [0; 1024];
     loop {
         //blocks until something is there
-        let msg : MsgToClient = stream.single_read(&mut buf).unwrap();
+        let msg : MsgToClient = stream.single_read(&mut buf).expect("DISCONNECT MAYBE 1").unwrap();
         //TODO catch connection reset etc.
         println!("client incoming read of {:?}", &msg);
         client_in.lock_push_notify(msg);

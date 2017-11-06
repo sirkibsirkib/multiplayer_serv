@@ -7,6 +7,7 @@ use std::fs;
 use std::path::Path;
 use std;
 use super::saving::SaverLoader;
+use std::io::{ErrorKind};
 
 // use super::bidir_map::BidirMap;
 use std::collections::HashMap;
@@ -225,23 +226,27 @@ impl<T> ProtectedQueue<T> {
 extern crate byteorder;
 use std::io::Write;
 use std::io::prelude::Read;
+use std::io;
 
 use self::byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 
 trait SingleStream {
-    fn single_read<'a, S>(&mut self, buf : &'a mut [u8]) -> Option<S> where S : Deserialize<'a>;
-    fn single_write<S>(&mut self, s : S) where S : Serialize;
-    fn single_write_bytes(&mut self, bytes : &[u8]);
+    fn single_read<'a, S>(&mut self, buf : &'a mut [u8]) -> Result<Option<S>, io::Error>
+        where S : Deserialize<'a>;
+    fn single_write<S>(&mut self, s : S) -> Result<(), io::Error>
+        where S : Serialize;
+    fn single_write_bytes(&mut self, bytes : &[u8]) -> Result<(), io::Error>;
 }
 
 impl SingleStream for TcpStream {
-    fn single_read<'a, S>(&mut self, buf : &'a mut [u8]) -> Option<S> where S : Deserialize<'a> {
+    fn single_read<'a, S>(&mut self, buf : &'a mut [u8]) -> Result<Option<S>, io::Error>
+    where S : Deserialize<'a> {
         println!("STARTING SINGLE_READ");
         let mut bytes_read : usize = 0;
         while bytes_read < 4 {
             if let Ok(bytes) = self.read(&mut buf[bytes_read..4]){
                 if bytes == 0 {
-                    return None;
+                    return Ok(None);
                 }
                 bytes_read += bytes;
             }
@@ -249,36 +254,36 @@ impl SingleStream for TcpStream {
         let num : usize = (&*buf).read_u32::<BigEndian>().unwrap() as usize;
         println!("Received header. will now wait for {} bytes", num);
         let msg_slice = &mut buf[..num];
-        self.read_exact(msg_slice).expect("Failed to read exact");
-        let got : S = bincode::deserialize(msg_slice).expect("deser didnt go ok");
-        // let stringy = ::std::str::from_utf8(msg_slice).expect("bytes to string");
-        // println!("got message of len {} : [{:?}]", num, stringy);
-        Some(
-            // serde_json::from_str(&stringy)
-            // .expect("verify connections to json")
-            got
-        )
+        self.read_exact(msg_slice)?;
+        if let Ok(got) = bincode::deserialize(msg_slice) {
+            Ok(Some(got))
+        } else {
+            Err(io::Error::new(ErrorKind::Other, "oh no!"))
+        }
     }
 
-    fn single_write<S>(&mut self, s : S) where S : Serialize {
+    fn single_write<S>(&mut self, s : S) -> Result<(), io::Error>
+    where S : Serialize {
         println!("STARTING SINGLE_WRITE");
         // let stringy = serde_json::to_string(&s).expect("serde outgoing json ONLY");
         // let bytes = stringy.as_bytes();
         let bytes = bincode::serialize(&s, bincode::Infinite).expect("went kk lel");
         let mut num : [u8;4] = [0;4];
         // println!("Writing {} bytes message `{}`", bytes.len(), &stringy);
-        (&mut num[..]).write_u32::<BigEndian>(bytes.len() as u32).is_ok();
-        self.write(&num).is_ok();
-        self.write(&bytes).is_ok();
+        (&mut num[..]).write_u32::<BigEndian>(bytes.len() as u32)?;
+        self.write(&num)?;
+        self.write(&bytes)?;
+        Ok(())
     }
 
-    fn single_write_bytes(&mut self, bytes : &[u8]) {
+    fn single_write_bytes(&mut self, bytes : &[u8]) -> Result<(), io::Error> {
         println!("STARTING single_write_bytes");
         let mut num : [u8;4] = [0;4];
         println!("Writing {} bytes message {:?}", bytes.len(), String::from_utf8_lossy(&bytes));
-        (&mut num[..]).write_u32::<BigEndian>(bytes.len() as u32).is_ok();
-        self.write(&num).is_ok();
-        self.write(&bytes).is_ok();
+        (&mut num[..]).write_u32::<BigEndian>(bytes.len() as u32)?;
+        self.write(&num)?;
+        self.write(&bytes)?;
+        Ok(())
     }
 }
 
