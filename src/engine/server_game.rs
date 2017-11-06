@@ -15,7 +15,9 @@ pub fn game_loop(mut global_state : GameState,
     println!("Server game loop");
     //comment
     let time_between_updates = time::Duration::from_millis(1000/game_state::UPDATES_PER_SEC);
-    let time_between_syncfloods = time::Duration::from_millis(3000);
+
+    println!("TIME BETWEEN SYNCHFLOODS INFLATED FOR TESTING OK?", );
+    let time_between_syncfloods = time::Duration::from_millis(300000);
 
     let mut player_controlling : HashMap<ClientID,Vec<EntityID>> = HashMap::new();
 

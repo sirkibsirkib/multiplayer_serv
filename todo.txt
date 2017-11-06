@@ -1,4 +1,10 @@
 associate client ID with username
 //in-game client ID is all that matters
 //rename to player ID?
-//store mappings parmanently in a file
+//store mappings permanently in a file
+
+
+userbase is stored only in MEMORY
+when the game saves its state, THEN it saves the userbase too
+
+on load, serialized userbase objects are also loaded

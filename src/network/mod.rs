@@ -3,6 +3,11 @@ use std::net::TcpListener;
 use std::error::Error;
 use std::thread;
 use std::net::TcpStream;
+use std::fs;
+use std;
+
+// use super::bidir_map::BidirMap;
+use std::collections::HashMap;
 
 use super::engine::game_state::{EntityID,Point};
 
@@ -23,10 +28,11 @@ NOTE: Does NOT consume caller thread
 pub fn spawn_server(port : u16,
                     server_in : Arc<ProtectedQueue<MsgFromClient>>,
                     server_out : Arc<ProtectedQueue<MsgToClientSet>>,
+                    userbase : Arc<Mutex<UserBase>>,
                 ) -> Result<(), &'static str> {
     if let Ok(listener) = TcpListener::bind(format!("127.0.0.1:{}", port)) {
         thread::spawn(move || {
-            server::server_enter(listener, server_in, server_out);
+            server::server_enter(listener, server_in, server_out, userbase);
         });
         Ok(())
     } else {
@@ -98,6 +104,15 @@ pub fn bound_string(s : String) -> BoundedString {
     bounded
 }
 
+pub fn bounded_printable(b : BoundedString) -> String {
+    let r = std::str::from_utf8(&b).unwrap().trim();
+    let q : &str = match r.find(0 as char) {
+        Some(ind) => &r[..ind],
+        None => r,
+    };
+    q.trim().to_owned()
+}
+
 pub type ClientID = u16;
 pub const SINGLE_PLAYER_CID : ClientID = 0;
 
@@ -121,8 +136,7 @@ pub enum MsgToClient {
     YouNoLongerControl(EntityID),
     EntityMoveTo(EntityID,Point),
     LoginSuccessful(ClientID),
-    BadUsername,
-    BadPassword,
+    LoginFailure(UserBaseError),
 }
 
 
@@ -258,4 +272,109 @@ impl SingleStream for TcpStream {
         self.write(&num).is_ok();
         self.write(&bytes).is_ok();
     }
+}
+
+//everthing is keyed BY CID
+//username and password are just client-facing
+
+#[derive(Serialize,Deserialize,Debug)]
+pub struct UserBase {
+    cid_to_username : HashMap<ClientID, BoundedString>,
+    username_to_cid : HashMap<BoundedString, ClientID>,
+    cid_to_password : HashMap<ClientID, BoundedString>,
+    logged_in : HashMap<ClientID, bool>,
+    next_avail_cid : ClientID,
+}
+
+impl UserBase {
+    pub fn new() -> UserBase {
+        UserBase {
+            cid_to_username : HashMap::new(),
+            username_to_cid : HashMap::new(),
+            cid_to_password : HashMap::new(),
+            logged_in : HashMap::new(),
+            next_avail_cid : 1, //0 reserved for server
+        }
+    }
+
+    /*
+    crawls the given path looking for text files. Registers users and deletes the files when successful
+    files are formatted as (inbetween '''):
+    '''
+    <username>\n
+    <password>\n
+    '''
+    */
+    pub fn consume_registration_files(&mut self, path : &str) {
+        println!("CONSUMING consume_registration_files");
+        let paths = fs::read_dir(path).unwrap();
+        for path in paths {
+            if let Ok(okpath) = path {
+                if let Ok(mut file) = fs::File::open(&okpath.path()) {
+                    let mut contents = String::new();
+                    file.read_to_string(&mut contents)
+                    .expect("something went wrong reading the file");
+
+                    let splits = contents.split("\n").collect::<Vec<&str>>();
+                    if splits.len() == 2 {
+                        let username : BoundedString = bound_string(splits[0].trim().to_owned());
+                        let password : BoundedString = bound_string(splits[1].trim().to_owned());
+                        if self.register(username, password) {
+                            println!(
+                                "Successfully registered {} with pass {}",
+                                bounded_printable(username),
+                                bounded_printable(password),
+                            );
+                        } else {
+                            println!(
+                                "Failed to register {}. User was already registered.",
+                                bounded_printable(username),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    //returns true if success
+    fn register(&mut self, username : BoundedString, password : BoundedString) -> bool {
+        if self.username_to_cid.contains_key(&username) {
+            false
+        } else {
+            let cid = self.next_avail_cid;
+            self.next_avail_cid += 1;
+
+            self.username_to_cid.insert(username, cid);
+            self.cid_to_username.insert(cid, username);
+            self.cid_to_password.insert(cid, password);
+            true
+        }
+    }
+
+    fn is_logged_in(&self, cid : ClientID) -> bool {
+        self.logged_in.get(&cid) == Some(&true)
+    }
+
+    pub fn login(&mut self, username : BoundedString, password : BoundedString) -> Result<ClientID,UserBaseError> {
+        if let Some(cid) = self.username_to_cid.get(&username) {
+            if self.is_logged_in(*cid) {
+                Err(UserBaseError::AlreadyLoggedIn)
+            } else {
+                if self.cid_to_password.get(cid) == Some(&password) {
+                    self.logged_in.insert(*cid,true);
+                    Ok(*cid)
+                } else {
+                    Err(UserBaseError::WrongPassword)
+                }
+            }
+        } else {
+            Err(UserBaseError::UnknownUsername)
+        }
+    }
+}
+
+#[derive(Copy,Clone,Deserialize,Serialize,Debug)]
+pub enum UserBaseError {
+    AlreadyLoggedIn, UnknownUsername, WrongPassword,
 }

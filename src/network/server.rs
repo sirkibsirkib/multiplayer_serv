@@ -4,16 +4,18 @@ use std;
 use std::collections::HashMap;
 use std::io::prelude::Read;
 use std::net::{TcpStream,TcpListener};
-use super::{ProtectedQueue,MsgFromClient,MsgToClientSet,ClientID,MsgToServer,MsgToClient,BoundedString};
+use super::{ProtectedQueue,MsgFromClient,MsgToClientSet,ClientID,MsgToServer,MsgToClient,BoundedString,UserBase,UserBaseError};
 use serde_json;
 use super::SingleStream;
 use super::bound_string;
 use std::fs::File;
 
 
+
 pub fn server_enter(listener : TcpListener,
                     serv_in : Arc<ProtectedQueue<MsgFromClient>>,
                     serv_out : Arc<ProtectedQueue<MsgToClientSet>>,
+                    userbase : Arc<Mutex<UserBase>>,
                 ) {
 
     //TODO password
@@ -22,7 +24,7 @@ pub fn server_enter(listener : TcpListener,
     println!("Server enter begin.");
 
     thread::spawn(move || {
-        listen_for_new_clients(listener, streams, serv_in);
+        listen_for_new_clients(listener, streams, serv_in, userbase);
     });
     serve_outgoing(streams3, serv_out);
 }
@@ -30,13 +32,14 @@ pub fn server_enter(listener : TcpListener,
 fn listen_for_new_clients(listener : TcpListener,
                           streams : Arc<Mutex<HashMap<ClientID,TcpStream>>>,
                           serv_in : Arc<ProtectedQueue<MsgFromClient>>,
+                          userbase : Arc<Mutex<UserBase>>,
                       ) {
 
     let unverified_connections : Arc<ProtectedQueue<TcpStream>>
         = Arc::new(ProtectedQueue::new());
     let unverified_connections2 = unverified_connections.clone();
     thread::spawn(move || {
-        verify_connections(unverified_connections2, streams, serv_in);
+        verify_connections(unverified_connections2, streams, serv_in, userbase);
     });
 
     println!("Server listening for clients");
@@ -48,29 +51,30 @@ fn listen_for_new_clients(listener : TcpListener,
         unverified_connections.lock_push_notify(stream);
     }
 }
-
-fn get_password_for_username(b : BoundedString) -> Option<BoundedString> {
-    let usrname_path = [
-        "./accounts/",
-        std::str::from_utf8(&b).unwrap().trim_matches(|x| x as u8 == 0),
-        ".txt"
-    ].join("");
-    println!("Looking for file in {}", &usrname_path);
-    if let Ok(mut f) = File::open(usrname_path) {
-        let mut contents = String::new();
-        f.read_to_string(&mut contents)
-            .expect("something went wrong reading the file");
-        Some(bound_string(contents))
-    } else {
-        //couldn't find this user's file
-        None
-    }
-}
+//
+// fn get_password_for_username(b : BoundedString) -> Option<BoundedString> {
+//     let usrname_path = [
+//         "./accounts/user_credentials/",
+//         std::str::from_utf8(&b).unwrap().trim_matches(|x| x as u8 == 0),
+//         ".txt"
+//     ].join("");
+//     println!("Looking for file in {}", &usrname_path);
+//     if let Ok(mut f) = File::open(usrname_path) {
+//         let mut contents = String::new();
+//         f.read_to_string(&mut contents)
+//             .expect("something went wrong reading the file");
+//         Some(bound_string(contents))
+//     } else {
+//         //couldn't find this user's file
+//         None
+//     }
+// }
 
 fn verify_connections(unverified : Arc<ProtectedQueue<TcpStream>>,
                       streams : Arc<Mutex<HashMap<ClientID,TcpStream>>>,
-                      serv_in : Arc<ProtectedQueue<MsgFromClient>>) {
-    let mut next_cid : ClientID = 0;
+                      serv_in : Arc<ProtectedQueue<MsgFromClient>>,
+                      userbase : Arc<Mutex<UserBase>>,
+                  ) {
     let mut buf = [0; 1024];
     loop {
         let drained : Vec<TcpStream> = unverified.wait_until_nonempty_drain();
@@ -79,39 +83,26 @@ fn verify_connections(unverified : Arc<ProtectedQueue<TcpStream>>,
             println!("Verifier thread handling a stream");
             //TODO instead of unwrap, use something else
             let msg : MsgToServer = stream.single_read(&mut buf).unwrap();
-            if let MsgToServer::ClientLogin(username, password) = msg {
-                if let Some(stored_pass) = get_password_for_username(username) {
-                    if stored_pass == password {
-                        println!("ok username and password");
-                        stream.single_write(MsgToClient::LoginSuccessful(next_cid));
-                    } else {
-                        //mismatching password
-                        println!("Bad pass");
-                        stream.single_write(MsgToClient::BadPassword);
-                        break;
-                    }
-                } else {
-                    //didn't find user
-                    println!("bad username");
-                    stream.single_write(MsgToClient::BadUsername);
-                    break;
-                }
-                println!("Accepting client. assigning CID {}", &next_cid);
 
-                let stream_clone = stream.try_clone().expect("stream clone");
-                {
-                    streams.lock().expect("line 82 lock").insert(next_cid, stream);
+            userbase.lock().unwrap().consume_registration_files("./registration_files/");
+
+            if let MsgToServer::ClientLogin(username, password) = msg {
+                match userbase.lock().unwrap().login(username, password) {
+                    Err(ub_error) => {
+                        stream.single_write(MsgToClient::LoginFailure(ub_error));
+                    },
+                    Ok(cid) => {
+                        stream.single_write(MsgToClient::LoginSuccessful(cid));
+                        let stream_clone = stream.try_clone().expect("stream clone");
+                        {
+                            streams.lock().expect("line 82 lock").insert(cid, stream);
+                        }
+                        let serv_in_clone = serv_in.clone();
+                        thread::spawn(move || {
+                            serve_incoming(cid, stream_clone, serv_in_clone);
+                        });
+                    },
                 }
-                let serv_in_clone = serv_in.clone();
-                thread::spawn(move || {
-                    serve_incoming(next_cid, stream_clone, serv_in_clone);
-                });
-                if next_cid == ClientID::max_value() {
-                    //No more IDs to give! D:
-                    return
-                }
-                next_cid += 1;
-                break;
             }
         }
     }

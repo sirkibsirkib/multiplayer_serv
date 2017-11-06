@@ -1,5 +1,7 @@
-use std::sync::Arc;
+use std::sync::{Arc,Mutex};
 use std::thread;
+use std::io::stdout;
+use std::io::Write;
 
 #[macro_use]
 extern crate clap;
@@ -9,11 +11,13 @@ extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
 
+// extern crate bidir_map;
+
 mod network;
 mod engine;
 mod setup;
 
-use network::{ProtectedQueue,MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer};
+use network::{ProtectedQueue,MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer,UserBase};
 use setup::RunMode;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -44,6 +48,7 @@ fn main() {
             let client_out : Arc<ProtectedQueue<MsgToServer>> = Arc::new(ProtectedQueue::new());
             let client_out2 = client_out.clone();
 
+
             //spawns client in new threads, returns our server-issued client ID. mostly useful for debugging tbh
             let c_id = network::spawn_client(
                 &config.host().expect("Need to specify host!"),
@@ -64,15 +69,22 @@ fn main() {
             let server_out : Arc<ProtectedQueue<MsgToClientSet>> = Arc::new(ProtectedQueue::new());
             let server_out2 = server_out.clone();
 
+            let mut raw_userbase = UserBase::new();
+            raw_userbase.consume_registration_files("./registration_files/");
+
+            let userbase : Arc<Mutex<UserBase>> = Arc::new(Mutex::new(raw_userbase));
+            let userbase2 : Arc<Mutex<UserBase>> = userbase.clone();
+
             //spawns a server in new threads.
             network::spawn_server(
                 config.port().expect("Need to specify port!"),
                 server_in,
                 server_out,
+                userbase,
             ).expect("FAILED TO SPAWN SERVER");
 
             //consumes this thread to begin the game loop of the global game state aka `server game loop`
-            engine::server_engine(config.extract_state(), server_in2, server_out2);
+            engine::server_engine(config.extract_state(), server_in2, server_out2, userbase2);
         }
 
         &RunMode::SinglePlayer => {
@@ -91,10 +103,17 @@ fn main() {
             let client_in2 = client_in.clone();
             let client_out2 = client_out.clone();
 
+
+            let mut raw_userbase = UserBase::new();
+            raw_userbase.consume_registration_files("./registration_files/");
+            stdout().flush();
+            //TODO register the one single user
+            let userbase : Arc<Mutex<UserBase>> = Arc::new(Mutex::new(raw_userbase));
+
             //spawns a coupler in new threads.
             network::spawn_coupler(server_in, server_out, client_in, client_out);
             thread::spawn(move || {
-                engine::server_engine(config.extract_state(), server_in2, server_out2);
+                engine::server_engine(config.extract_state(), server_in2, server_out2, userbase);
             });
             //consumes this thread to create client-side aka `local` game loop & engine
             //main thread == client thread. So if piston exists, everything exits

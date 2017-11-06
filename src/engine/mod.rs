@@ -3,8 +3,8 @@ mod client_game;
 mod server_game;
 mod locations;
 
-use std::sync::Arc;
-use network::{ProtectedQueue,MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer,ClientID};
+use std::sync::{Arc,Mutex};
+use network::{ProtectedQueue,MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer,ClientID,UserBase};
 
 use self::game_state::GameState;
 
@@ -16,7 +16,9 @@ Manages the shared game state
 */
 pub fn server_engine(initial_state : Option<GameState>,
                     serv_in : Arc<ProtectedQueue<MsgFromClient>>,
-                    serv_out : Arc<ProtectedQueue<MsgToClientSet>>) {
+                    serv_out : Arc<ProtectedQueue<MsgToClientSet>>,
+                    userbase : Arc<Mutex<UserBase>>,
+                ) {
     let global_state = if let Some(s) = initial_state {
         s
     } else {

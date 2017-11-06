@@ -57,11 +57,12 @@ pub fn client_instigate_handshake(stream : &mut TcpStream) -> ClientID {
             if let MsgToClient::LoginSuccessful(cid) = msg {
                 stream.set_read_timeout(None).is_ok();
                 return cid
-            } else if let MsgToClient::BadUsername = msg {
-                panic!("Bad username!!");
-
-            } else if let MsgToClient::BadPassword = msg {
-                panic!("Bad password!!");
+            } else if let MsgToClient::LoginFailure(ub_error) = msg {
+                match ub_error {
+                    AlreadyLoggedIn => panic!("You are already logged in!"),
+                    UnknownUsername => panic!("Unknown username! Register first"),
+                    WrongPassword => panic!("Password doesn't match"),
+                }
 
             } else {
                 //unexpected message. Ignore.
