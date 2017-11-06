@@ -1,11 +1,6 @@
-use std::io::Error;
+
 use std::collections::HashMap;
-
-// use super::quad_tree::QuadTree;
-
 pub const UPDATES_PER_SEC : u64 = 32;
-
-
 
 pub struct GameState {
     entities : HashMap<EntityID, Entity>,

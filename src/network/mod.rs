@@ -4,7 +4,9 @@ use std::error::Error;
 use std::thread;
 use std::net::TcpStream;
 use std::fs;
+use std::path::Path;
 use std;
+use super::saving::SaverLoader;
 
 // use super::bidir_map::BidirMap;
 use std::collections::HashMap;
@@ -31,10 +33,11 @@ pub fn spawn_server(port : u16,
                     server_in : Arc<ProtectedQueue<MsgFromClient>>,
                     server_out : Arc<ProtectedQueue<MsgToClientSet>>,
                     userbase : Arc<Mutex<UserBase>>,
+                    sl : SaverLoader,
                 ) -> Result<(), &'static str> {
     if let Ok(listener) = TcpListener::bind(format!("127.0.0.1:{}", port)) {
         thread::spawn(move || {
-            server::server_enter(listener, server_in, server_out, userbase);
+            server::server_enter(listener, server_in, server_out, userbase, sl);
         });
         Ok(())
     } else {
@@ -182,10 +185,10 @@ impl<T> ProtectedQueue<T> {
         self.cond.notify_all();
     }
 
-    pub fn lock_len(&mut self) -> usize {
-        let locked_queue = self.queue.lock().unwrap();
-        locked_queue.len()
-    }
+    // pub fn lock_len(&mut self) -> usize {
+    //     let locked_queue = self.queue.lock().unwrap();
+    //     locked_queue.len()
+    // }
 
     pub fn lock_push_notify(&self, t : T) {
         let mut locked_queue = self.queue.lock().unwrap();
@@ -314,7 +317,8 @@ impl UserBase {
     <password>\n
     '''
     */
-    pub fn consume_registration_files(&mut self, path : &str) {
+
+    pub fn consume_registration_files(&mut self, path : &Path) {
         println!("CONSUMING consume_registration_files");
         let paths = fs::read_dir(path).unwrap();
         for path in paths {

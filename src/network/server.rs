@@ -5,6 +5,7 @@ use std::net::{TcpStream,TcpListener};
 use super::{ProtectedQueue,MsgFromClient,MsgToClientSet,ClientID,MsgToServer,MsgToClient,UserBase};
 use bincode;
 use super::SingleStream;
+use super::super::saving::SaverLoader;
 
 
 
@@ -12,6 +13,7 @@ pub fn server_enter(listener : TcpListener,
                     serv_in : Arc<ProtectedQueue<MsgFromClient>>,
                     serv_out : Arc<ProtectedQueue<MsgToClientSet>>,
                     userbase : Arc<Mutex<UserBase>>,
+                    sl : SaverLoader,
                 ) {
 
     //TODO password
@@ -20,7 +22,7 @@ pub fn server_enter(listener : TcpListener,
     println!("Server enter begin.");
 
     thread::spawn(move || {
-        listen_for_new_clients(listener, streams, serv_in, userbase);
+        listen_for_new_clients(listener, streams, serv_in, userbase, sl);
     });
     serve_outgoing(streams3, serv_out);
 }
@@ -29,13 +31,14 @@ fn listen_for_new_clients(listener : TcpListener,
                           streams : Arc<Mutex<HashMap<ClientID,TcpStream>>>,
                           serv_in : Arc<ProtectedQueue<MsgFromClient>>,
                           userbase : Arc<Mutex<UserBase>>,
+                          sl : SaverLoader,
                       ) {
 
     let unverified_connections : Arc<ProtectedQueue<TcpStream>>
         = Arc::new(ProtectedQueue::new());
     let unverified_connections2 = unverified_connections.clone();
     thread::spawn(move || {
-        verify_connections(unverified_connections2, streams, serv_in, userbase);
+        verify_connections(unverified_connections2, streams, serv_in, userbase, sl);
     });
 
     println!("Server listening for clients");
@@ -52,6 +55,7 @@ fn verify_connections(unverified : Arc<ProtectedQueue<TcpStream>>,
                       streams : Arc<Mutex<HashMap<ClientID,TcpStream>>>,
                       serv_in : Arc<ProtectedQueue<MsgFromClient>>,
                       userbase : Arc<Mutex<UserBase>>,
+                      sl : SaverLoader,
                   ) {
     let mut buf = [0; 1024];
     loop {
@@ -62,7 +66,7 @@ fn verify_connections(unverified : Arc<ProtectedQueue<TcpStream>>,
             //TODO instead of unwrap, use something else
             let msg : MsgToServer = stream.single_read(&mut buf).unwrap();
 
-            userbase.lock().unwrap().consume_registration_files("./registration_files/");
+            userbase.lock().unwrap().consume_registration_files(&sl.relative_path("./registration_files/"));
 
             if let MsgToServer::ClientLogin(username, password) = msg {
                 match userbase.lock().unwrap().login(username, password) {

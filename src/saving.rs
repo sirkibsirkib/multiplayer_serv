@@ -19,12 +19,29 @@ pub struct SaverLoader {
 impl SaverLoader {
     pub fn new(save_dir : &str) -> SaverLoader {
         let p = Path::new(save_dir);
-        if ! Path::new(p).exists() {
-            println!("CREATING NEW DIR");
-            create_dir(Path::new(p)).expect("Couldn't create new save dir");
-        }
-        SaverLoader {
+        // if ! Path::new(p).exists() {
+        //     println!("CREATING NEW DIR");
+        //     create_dir(Path::new(p)).expect("Couldn't create new save dir");
+        // }
+        let me = SaverLoader {
             save_dir : Box::new(p.to_path_buf())
+        };
+        me.ensure_folder_exists("./");
+        me.ensure_folder_exists("locations/");
+        me.ensure_folder_exists("users_to_register/");
+        me
+    }
+
+    pub fn relative_path<'a>(&self, rel : &'a str) -> PathBuf {
+        self.save_dir.clone().join(Path::new(rel))
+    }
+
+    fn ensure_folder_exists(&self, path : &str) {
+        let p = self.relative_path(path);
+
+        if ! p.exists() {
+            println!("CREATING NEW DIR for {:?}", &p);
+            create_dir(p).expect("Couldn't create new save dir");
         }
     }
 
