@@ -10,11 +10,12 @@ use super::saving::SaverLoader;
 use std::io::{ErrorKind};
 
 // use super::bidir_map::BidirMap;
-use std::collections::HashMap;
+use std::collections::{HashMap,HashSet};
 use bincode;
 use serde::{Serialize,Deserialize};
 
 use super::engine::game_state::{EntityID,Point};
+use super::engine::locations::LocationID;
 
 mod server;
 mod client;
@@ -128,15 +129,19 @@ pub enum MsgToServer {
     RequestControlOf(EntityID),
     RelinquishControlof(EntityID),
     CreateEntity(EntityID,Point),
-    ControlMoveTo(EntityID,Point),
+    ControlMoveTo(LocationID,EntityID,Point),
     //username, password_hash
     ClientLogin(BoundedString,BoundedString),
-    LoadEntities, //client needs positions of entities in area
+    RequestEntityData(EntityID),
+    RequestControlling,
+    RequestLocationData(LocationID),
 }
 
 //PRIMITIVE
 #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub enum MsgToClient {
+    GiveEntityData(EntityID,LocationID,Point),
+    GiveControlling(Option<(EntityID,LocationID)>),
     CreateEntity(EntityID,Point),
     YouNowControl(EntityID),
     YouNoLongerControl(EntityID),
@@ -231,7 +236,7 @@ use std::io;
 use self::byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 
 trait SingleStream {
-    fn single_read<'a, S>(&mut self, buf : &'a mut [u8]) -> Result<Option<S>, io::Error>
+    fn single_read<'a, S>(&mut self, buf : &'a mut [u8]) -> Result<S, io::Error>
         where S : Deserialize<'a>;
     fn single_write<S>(&mut self, s : S) -> Result<(), io::Error>
         where S : Serialize;
@@ -239,24 +244,23 @@ trait SingleStream {
 }
 
 impl SingleStream for TcpStream {
-    fn single_read<'a, S>(&mut self, buf : &'a mut [u8]) -> Result<Option<S>, io::Error>
+    fn single_read<'a, S>(&mut self, buf : &'a mut [u8]) -> Result<S, io::Error>
     where S : Deserialize<'a> {
         println!("STARTING SINGLE_READ");
         let mut bytes_read : usize = 0;
         while bytes_read < 4 {
-            if let Ok(bytes) = self.read(&mut buf[bytes_read..4]){
-                if bytes == 0 {
-                    return Ok(None);
-                }
-                bytes_read += bytes;
+            let bytes = self.read(&mut buf[bytes_read..4])?;
+            if bytes == 0 {
+                return Err(io::Error::new(ErrorKind::Other, "zero bytes!"))
             }
+            bytes_read += bytes;
         }
         let num : usize = (&*buf).read_u32::<BigEndian>().unwrap() as usize;
         println!("Received header. will now wait for {} bytes", num);
         let msg_slice = &mut buf[..num];
         self.read_exact(msg_slice)?;
         if let Ok(got) = bincode::deserialize(msg_slice) {
-            Ok(Some(got))
+            Ok(got)
         } else {
             Err(io::Error::new(ErrorKind::Other, "oh no!"))
         }
@@ -295,7 +299,10 @@ pub struct UserBase {
     cid_to_username : HashMap<ClientID, BoundedString>,
     username_to_cid : HashMap<BoundedString, ClientID>,
     cid_to_password : HashMap<ClientID, BoundedString>,
-    logged_in : HashMap<ClientID, bool>,
+    // cid_to_location : HashMap<ClientID, LocationID>,
+    // cid_to_controlling : HashMap<ClientID,EntityID>,
+    first_time_setup_pending : HashSet<ClientID>,
+    logged_in : HashSet<ClientID>,
     next_avail_cid : ClientID,
 }
 
@@ -311,7 +318,10 @@ impl UserBase {
             cid_to_username : HashMap::new(),
             username_to_cid : HashMap::new(),
             cid_to_password : HashMap::new(),
-            logged_in : HashMap::new(),
+            // cid_to_location : HashMap::new(),
+            // cid_to_controlling : HashMap::new(),
+            first_time_setup_pending : HashSet::new(),
+            logged_in : HashSet::new(),
             next_avail_cid : 1, //0 reserved for server
         }
     }
@@ -341,19 +351,20 @@ impl UserBase {
                         let password : BoundedString = bound_string(splits[1].trim().to_owned());
                         if self.register(username, password) {
                             println!(
-                                "Successfully registered {} with pass {}",
+                                ":::Successfully registered {} with pass {}",
                                 bounded_printable(username),
                                 bounded_printable(password),
                             );
                         } else {
                             println!(
-                                "Failed to register {}. User was already registered.",
+                                ":::Failed to register {}. User was already registered.",
                                 bounded_printable(username),
                             );
                         }
                     }
                 }
-                let _ = fs::remove_file(&okpath.path());
+                println!("REG NOT REMOVING FILE (debug)", );
+                // let _ = fs::remove_file(&okpath.path());
             }
         }
     }
@@ -369,18 +380,55 @@ impl UserBase {
             self.username_to_cid.insert(username, cid);
             self.cid_to_username.insert(cid, username);
             self.cid_to_password.insert(cid, password);
+            self.first_time_setup_pending.insert(cid);
             true
         }
     }
 
     fn is_logged_in(&self, cid : ClientID) -> bool {
-        self.logged_in.get(&cid) == Some(&true)
+        self.logged_in.contains(&cid)
     }
+
+    pub fn set_client_setup_true(&mut self, cid : ClientID) {
+        self.first_time_setup_pending.remove(&cid);
+    }
+
+    pub fn client_is_setup(&self, cid : ClientID) -> bool {
+        ! self.first_time_setup_pending.contains(&cid)
+    }
+
+    // pub fn set_controlling(&mut self, cid : ClientID, eid : EntityID) {
+    //     self.cid_to_controlling.insert(cid, eid);
+    // }
+
+    // fn controlling(&self, cid : ClientID) -> Option<EntityID> {
+    //     if let Some(eid) = self.cid_to_controlling.get(&cid) {
+    //         Some(*eid)
+    //     } else {
+    //         None
+    //     }
+    // }
+    //
+    // pub fn set_location_of(&mut self, cid : ClientID, lid : LocationID) {
+    //     self.cid_to_location.insert(cid, lid);
+    // }
+
+    // fn location_of(&self, cid : ClientID) -> Option<LocationID> {
+    //     if let Some(lid) = self.cid_to_location.get(&cid) {
+    //         Some(*lid)
+    //     } else {
+    //         None
+    //     }
+    // }
 
     // USED WHEN LOADED
     //TODO just make serialization omit this field
     pub fn log_everyone_out(&mut self) {
         self.logged_in.clear();
+    }
+
+    pub fn logout(&mut self, cid : ClientID) {
+        self.logged_in.remove(&cid);
     }
 
     pub fn login(&mut self, username : BoundedString, password : BoundedString) -> Result<ClientID,UserBaseError> {
@@ -389,7 +437,7 @@ impl UserBase {
                 Err(UserBaseError::AlreadyLoggedIn)
             } else {
                 if self.cid_to_password.get(cid) == Some(&password) {
-                    self.logged_in.insert(*cid,true);
+                    self.logged_in.insert(*cid);
                     Ok(*cid)
                 } else {
                     Err(UserBaseError::WrongPassword)

@@ -1,6 +1,6 @@
 use super::game_state;
 use super::game_state::{GameState,EntityID,Entity,Point};
-use super::locations::{Location,LocationLoader};
+use super::locations::{Location,LocationLoader,START_LOCATION,LocationID};
 
 use std::time::Duration;
 use std::sync::{Arc,Mutex};
@@ -10,6 +10,17 @@ use super::super::network::{ProtectedQueue,MsgFromClient,MsgToClientSet,ClientID
 use std::thread;
 use super::SaverLoader;
 
+struct ServerData {
+    next_eid : EntityID,
+    cid_to_controlling : HashMap<ClientID, (EntityID,LocationID)>,
+}
+
+impl ServerData {
+    fn use_next_eid(&mut self) -> EntityID {
+        self.next_eid += 1;
+        self.next_eid - 1
+    }
+}
 
 pub fn game_loop(serv_in : Arc<ProtectedQueue<MsgFromClient>>,
                  serv_out : Arc<ProtectedQueue<MsgToClientSet>>,
@@ -18,7 +29,12 @@ pub fn game_loop(serv_in : Arc<ProtectedQueue<MsgFromClient>>,
              ) {
     println!("Server game loop");
 
-    let mut global_state : GameState = GameState::new();
+    let mut server_data : ServerData = ServerData {
+        next_eid : 0,
+        cid_to_controlling : HashMap::new(),
+    };
+
+    // let mut global_state : GameState = GameState::new();
 
     //comment
     let time_between_updates = time::Duration::from_millis(1000/game_state::UPDATES_PER_SEC);
@@ -26,26 +42,24 @@ pub fn game_loop(serv_in : Arc<ProtectedQueue<MsgFromClient>>,
     // println!("TIME BETWEEN SYNCHFLOODS INFLATED FOR TESTING OK?", );
     let time_between_syncfloods = time::Duration::from_millis(3000);
 
-    let mut player_controlling : HashMap<ClientID,Vec<EntityID>> = HashMap::new();
-
     let mut location_loader = LocationLoader::new(Duration::new(10,0), sl.clone());
 
 
     let mut last_syncflood_at = time::Instant::now();
 
-    global_state.add_entity(8437, Entity::new(Point{x:0.9, y:0.9}));
+    // global_state.add_entity(8437, Entity::new(Point{x:0.9, y:0.9}));
     loop {
         let update_start = time::Instant::now();
         if last_syncflood_at.elapsed() > time_between_syncfloods {
             last_syncflood_at = update_start;
-            synchflood(&serv_out, &global_state);
+            synchflood(&serv_out, &location_loader);
 
             println!("SAVING FOR TESTING PURPOSES");
             let u : &UserBase = &userbase.lock().unwrap();
             sl.save_me(u, "user_base.lel").expect("couldn't save user base!");
         }
 
-        update_step(&serv_in, &serv_out, &mut global_state, &mut player_controlling);
+        update_step(&serv_in, &serv_out, &mut location_loader, &userbase, &mut server_data);
 
         let since_update = update_start.elapsed();
         if since_update < time_between_updates {
@@ -54,22 +68,24 @@ pub fn game_loop(serv_in : Arc<ProtectedQueue<MsgFromClient>>,
     }
 }
 
-fn synchflood(serv_out : &Arc<ProtectedQueue<MsgToClientSet>>, global_state : &GameState) {
-    println!("SYNCHFLOOD!");
+fn synchflood(serv_out : &Arc<ProtectedQueue<MsgToClientSet>>, location_loader : &LocationLoader,) {
+    // println!("SYNCHFLOOD!");
     //TODO dont send everything to everyone. instead figure out what each client can see
-    for (eid, e) in global_state.entity_iterator() {
-        serv_out.lock_push_notify(
-            MsgToClientSet::All(
-                MsgToClient::EntityMoveTo(*eid, *e.p())
-            )
-        );
-    }
+    // for (eid, e) in global_state.entity_iterator() {
+    //     serv_out.lock_push_notify(
+    //         MsgToClientSet::All(
+    //             MsgToClient::EntityMoveTo(*eid, *e.p())
+    //         )
+    //     );
+    // }
 }
 
 fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                serv_out : &Arc<ProtectedQueue<MsgToClientSet>>,
-               global_state : &mut GameState,
-               player_controlling : &mut HashMap<ClientID,Vec<EntityID>>) {
+               location_loader : &mut LocationLoader,
+               user_base : &Arc<Mutex<UserBase>>,
+               server_data : &mut ServerData,
+           ) {
     //comment
     let mut outgoing_updates : Vec<MsgToClientSet> = vec![];
 
@@ -77,35 +93,89 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
     if let Some(drained) = serv_in.impatient_drain() {
         for d in drained {
             match d.msg {
-                MsgToServer::LoadEntities => {
-                    for e in global_state.entity_iterator() {
+                // MsgToServer::LoadEntities => {
+                //     for e in global_state.entity_iterator() {
+                //         outgoing_updates.push(
+                //             MsgToClientSet::Only(MsgToClient::CreateEntity(*e.0,*e.1.p()), d.cid)
+                //         );
+                //     }
+                // }
+                // MsgToServer::RequestControlOf(eid) => {
+                //
+                //     if global_state.entity_exists(eid) {
+                //         player_controlling.insert(d.cid, eid);
+                //         outgoing_updates.push(
+                //             MsgToClientSet::Only(MsgToClient::YouNowControl(eid), d.cid)
+                //         );
+                //     }
+                //     // try_add_control(d.cid, eid, global_state, player_controlling);
+                //
+                // },
+                // MsgToServer::CreateEntity(eid,pt) => {
+                //     global_state.add_entity(eid, Entity::new(pt));
+                //     outgoing_updates.push(
+                //         MsgToClientSet::All(MsgToClient::CreateEntity(eid,pt))
+                //     );
+                // },
+                // MsgToServer::ControlMoveTo(eid,pt) => {
+                //     if player_controlling.get(&d.cid) == Some(&eid) {
+                //         global_state.entity_move_to(eid, pt);
+                //         outgoing_updates.push(
+                //             MsgToClientSet::All(MsgToClient::EntityMoveTo(eid, pt))
+                //         );
+                //     }
+                //     // if client_controls(d.cid, eid, player_controlling) {
+                //     //
+                //     // }
+                // },
+                MsgToServer::ControlMoveTo(lid,eid,pt) => {
+                    if Some(&(eid,lid)) == server_data.cid_to_controlling.get(&d.cid) {
+                        println!("You DO have permission to ctrl move that!");
+                        location_loader.get_mut_foreground(lid)
+                        .entity_move_to(eid, pt);
+                    } else {
+                        println!("You don't have permission to ctrl move that!");
+                    }
+                }
+                MsgToServer::RequestLocationData(lid) => {
+                    let l = location_loader.get_foreground(lid);
+                    println!(">> loc get got {:?}", &l);
+                    for (eid, ent) in l.entity_iterator() {
+                        println!(">> informing client{:?} of eid {:?} {:?}", &d.cid, eid, &ent);
                         outgoing_updates.push(
-                            MsgToClientSet::Only(MsgToClient::CreateEntity(*e.0,*e.1.p()), d.cid)
+                            MsgToClientSet::Only(
+                                MsgToClient::GiveEntityData(*eid,lid,*ent.p()),
+                                d.cid,
+                            )
                         );
                     }
                 }
-                MsgToServer::RequestControlOf(eid) => {
-                    try_add_control(d.cid, eid, global_state, player_controlling);
-                    outgoing_updates.push(
-                        MsgToClientSet::Only(MsgToClient::YouNowControl(eid), d.cid)
-                    );
-                }
-                MsgToServer::CreateEntity(eid,pt) => {
-                    global_state.add_entity(eid, Entity::new(pt));
-                    outgoing_updates.push(
-                        MsgToClientSet::All(MsgToClient::CreateEntity(eid,pt))
-                    );
-
-                }
-                MsgToServer::ControlMoveTo(eid,pt) => {
-                    if client_controls(d.cid, eid, player_controlling) {
-                        global_state.entity_move_to(eid, pt);
-                        outgoing_updates.push(
-                            MsgToClientSet::All(MsgToClient::EntityMoveTo(eid, pt))
-                        );
+                MsgToServer::RequestControlling => {
+                    if server_data.cid_to_controlling.get(&d.cid) == None {
+                        println!("cid_to_controlling");
+                        let mut locked_ub = user_base.lock().unwrap();
+                        if ! locked_ub.client_is_setup(d.cid) {
+                            println!("CLIENT {:?} having first-time setup", d.cid);
+                            let player_eid = server_data.use_next_eid();
+                            locked_ub.set_client_setup_true(d.cid);
+                            server_data.cid_to_controlling.insert(d.cid, (player_eid,START_LOCATION));
+                            location_loader.load(START_LOCATION)
+                                .place_inside(player_eid, Entity::new(Point::new(0.5,0.5)));
+                        }
                     }
-                }
-                _ => {unimplemented!();}
+                    outgoing_updates.push(
+                        MsgToClientSet::Only(
+                            MsgToClient::GiveControlling(
+                                inner_unwrap(server_data.cid_to_controlling.get(&d.cid)),
+                            ),
+                            d.cid,
+                        )
+                    );
+                },
+                x => {
+                    println!("SERVER CAN'T HANDLE {:?}", &x);
+                    unimplemented!();
+                },
             }
         }
     }
@@ -116,25 +186,33 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
     serv_out.lock_pushall_notify(outgoing_updates.drain(..));
 }
 
-fn client_controls(cid : ClientID, eid : EntityID, player_controlling : &mut HashMap<ClientID,Vec<EntityID>>) -> bool {
-    if let Some(controlling_list) = player_controlling.get(&cid) {
-        controlling_list.contains(&eid)
+fn inner_unwrap<T : Copy>(o : Option<&T>) -> Option<T> {
+    if let Some(x) = o {
+        Some(*x)
     } else {
-        false
+        None
     }
 }
 
-fn try_add_control(cid : ClientID,
-                   eid : EntityID,
-                   global_state : &mut GameState,
-                   player_controlling : &mut HashMap<ClientID,Vec<EntityID>>) {
-    if global_state.entity_exists(eid) {
-        if let Some(controlling_list) = player_controlling.get_mut(&cid) {
-            if ! controlling_list.contains(&eid) {
-                controlling_list.push(eid);
-            }
-            return;
-        }
-        player_controlling.insert(cid, vec![eid]);
-    }
-}
+// fn client_controls(cid : ClientID, eid : EntityID, player_controlling : &mut HashMap<ClientID,Vec<EntityID>>) -> bool {
+//     if let Some(controlling_list) = player_controlling.get(&cid) {
+//         controlling_list.contains(&eid)
+//     } else {
+//         false
+//     }
+// }
+
+// fn try_add_control(cid : ClientID,
+//                    eid : EntityID,
+//                    global_state : &mut GameState,
+//                    player_controlling : &mut HashMap<ClientID,Vec<EntityID>>) {
+//     if global_state.entity_exists(eid) {
+//         if let Some(controlling_list) = player_controlling.get_mut(&cid) {
+//             if ! controlling_list.contains(&eid) {
+//                 controlling_list.push(eid);
+//             }
+//             return;
+//         }
+//         player_controlling.insert(cid, vec![eid]);
+//     }
+// }

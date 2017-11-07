@@ -3,7 +3,10 @@ use std::fs::File;
 use std::io::{Read,Write};
 use std::collections::HashMap;
 use super::SaverLoader;
+use super::game_state::{EntityID,Entity,Point};
 
+pub type LocationID = u32;
+pub const START_LOCATION : LocationID = 0;
 
 pub struct UniversalCoord {
     lid : LocationID,
@@ -11,29 +14,57 @@ pub struct UniversalCoord {
     y : u32,
 }
 
-#[derive(Debug)]
+#[derive(Debug,Serialize,Deserialize)]
 pub struct Location {
-
+    entities : HashMap<EntityID, Entity>,
 }
 
 impl Location {
-    fn load_from_file(path : &str) -> Location {
-        let mut data = String::new();
-        let mut f = File::open(path).expect("Unable to read Location");
-        f.read_to_string(&mut data).expect("Unable to read string");
-        Location{
 
+    pub fn new() -> Location {
+        Location {
+            entities : HashMap::new(),
         }
     }
 
-    fn write_to_file(&self, path : &str) {
-        let data = "Some data!";
-        let mut f = File::create(path).expect("Unable to create file");
-        f.write_all(data.as_bytes()).expect("Unable to write data");
+    pub fn start_location() -> Location {
+        Location {
+            entities : HashMap::new(),
+        }
+    }
+
+    pub fn filename(lid : LocationID) -> String {
+        format!("loc_{}", lid)
+    }
+
+
+
+    pub fn contains_entity(&self, eid : EntityID) -> bool {
+        self.entities.contains_key(&eid)
+    }
+
+    pub fn place_inside(&mut self, eid : EntityID, e : Entity) {
+        self.entities.insert(eid, e);
+    }
+
+    // pub fn add_entity(&mut self, id : EntityID, e : Entity) {
+    //     self.entities.insert(id, e);
+    // }
+
+    pub fn entity_move_to(&mut self, id : EntityID, pt : Point) {
+        //TODO count synch errors. when you pass a threshold you trigger a RESYNCH
+        if let Some(x) = self.entities.get_mut(& id) {
+            x.move_to(pt);
+        }
+    }
+
+    pub fn entity_iterator<'a>(&'a self) -> Box<Iterator<Item=(&EntityID,&Entity)> + 'a> {
+        Box::new(
+            self.entities.iter()
+        )
     }
 }
 
-type LocationID = u32;
 
 #[derive(Debug)]
 struct TimestampedLocation {
@@ -75,7 +106,15 @@ impl LocationLoader {
         }
     }
 
-    pub fn load(&mut self, lid : LocationID) {
+    pub fn get_mut_foreground(&mut self, lid : LocationID) -> &mut Location {
+        self.foreground.get_mut(&lid).unwrap()
+    }
+
+    pub fn get_foreground(&self, lid : LocationID) -> &Location {
+        self.foreground.get(&lid).unwrap()
+    }
+
+    pub fn load(&mut self, lid : LocationID) -> &mut Location {
         if ! self.foreground.contains_key(& lid) {
             if let Some(timestamped_loc) = self.background.remove(& lid) {
                 // upgrade background --> foreground
@@ -84,10 +123,20 @@ impl LocationLoader {
             } else {
                 //fresh load from file
                 println!("Loading background LID {:?}", &lid);
-                let l = Location::load_from_file(& format!("{}", &lid));
-                self.foreground.insert(lid, l);
+                match self.sl.load_me(& Location::filename(lid)){
+                    Ok(l) => {
+                        self.foreground.insert(lid, l);
+                    },
+                    Err(_) => {
+                        if lid == START_LOCATION {
+                            println!("Generating start location!");
+                            self.foreground.insert(lid, Location::start_location());
+                        }
+                    }
+                }
             }
         }
+        self.foreground.get_mut(&lid).unwrap()
     }
 
     pub fn unload_overdue_backgrounds(&mut self) {
@@ -95,7 +144,7 @@ impl LocationLoader {
         for (k, v) in self.background.iter_mut() {
             if v.loaded_at.elapsed() > self.background_retention {
                 //unload
-                v.location.write_to_file(&format!("{}", &k));
+                self.sl.save_me(k, & Location::filename(*k));
                 remove_lids.push(*k);
             }
         }

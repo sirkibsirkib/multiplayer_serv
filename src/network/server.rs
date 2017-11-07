@@ -6,6 +6,7 @@ use super::{ProtectedQueue,MsgFromClient,MsgToClientSet,ClientID,MsgToServer,Msg
 use bincode;
 use super::SingleStream;
 use super::super::saving::SaverLoader;
+use std::time;
 
 
 
@@ -21,10 +22,11 @@ pub fn server_enter(listener : TcpListener,
     let streams3 = streams.clone();
     println!("Server enter begin.");
 
+    let userbase_clone = userbase.clone();
     thread::spawn(move || {
-        listen_for_new_clients(listener, streams, serv_in, userbase, sl);
+        listen_for_new_clients(listener, streams, serv_in, userbase_clone, sl);
     });
-    serve_outgoing(streams3, serv_out);
+    serve_outgoing(streams3, serv_out, userbase);
 }
 
 fn listen_for_new_clients(listener : TcpListener,
@@ -45,11 +47,11 @@ fn listen_for_new_clients(listener : TcpListener,
     //sleepily handle incoming listeners
     for s in listener.incoming() {
         let stream = s.expect("failed to get incoming stream");
-        stream.set_read_timeout(None).is_ok();
         println!("Handing connection to verifier");
         unverified_connections.lock_push_notify(stream);
     }
 }
+
 
 fn verify_connections(unverified : Arc<ProtectedQueue<TcpStream>>,
                       streams : Arc<Mutex<HashMap<ClientID,TcpStream>>>,
@@ -58,33 +60,48 @@ fn verify_connections(unverified : Arc<ProtectedQueue<TcpStream>>,
                       sl : SaverLoader,
                   ) {
     let mut buf = [0; 1024];
+    let verify_timeout = time::Duration::from_millis(20000);
     loop {
         let drained : Vec<TcpStream> = unverified.wait_until_nonempty_drain();
         println!("Verifier thread woke up");
         for mut stream in drained {
-            println!("Verifier thread handling a stream");
+
+            //TODO spawn thread to wait for username message here! so don't have to wait
+
+            println!(":::Verifier thread handling a stream");
+            stream.set_read_timeout(Some(verify_timeout)).is_ok();
             //TODO instead of unwrap, use something else
-            let msg : MsgToServer = stream.single_read(&mut buf).expect("DISCONNECT MAYBE 4").unwrap();
-
-            userbase.lock().unwrap().consume_registration_files(&sl.relative_path(UserBase::REGISTER_PATH));
-
-            if let MsgToServer::ClientLogin(username, password) = msg {
-                match userbase.lock().unwrap().login(username, password) {
-                    Err(ub_error) => {
-                        stream.single_write(MsgToClient::LoginFailure(ub_error)).expect("DISCONNECT MAYBE 5");
-                    },
-                    Ok(cid) => {
-                        stream.single_write(MsgToClient::LoginSuccessful(cid)).expect("DISCONNECT MAYBE 6");
-                        let stream_clone = stream.try_clone().expect("stream clone");
-                        {
-                            streams.lock().expect("line 82 lock").insert(cid, stream);
-                        }
-                        let serv_in_clone = serv_in.clone();
-                        thread::spawn(move || {
-                            serve_incoming(cid, stream_clone, serv_in_clone);
-                        });
-                    },
+            if let Ok(msg) = stream.single_read(&mut buf) {
+                println!(":::got message to verify ");
+                userbase.lock().unwrap().consume_registration_files(&sl.relative_path(UserBase::REGISTER_PATH));
+                if let MsgToServer::ClientLogin(username, password) = msg {
+                    match userbase.lock().unwrap().login(username, password) {
+                        Err(ub_error) => {
+                            //don't care if it fails
+                            let _ = stream.single_write(MsgToClient::LoginFailure(ub_error));
+                            drop(stream); //not necessary, just for clarity
+                        },
+                        Ok(cid) => {
+                            if let Err(_) = stream.single_write(MsgToClient::LoginSuccessful(cid)) {
+                                println!("O shet");
+                            } else {
+                                stream.set_read_timeout(None).is_ok();
+                                let stream_clone = stream.try_clone().expect("stream clone");
+                                {
+                                    streams.lock().expect("line 82 lock").insert(cid, stream);
+                                }
+                                let serv_in_clone = serv_in.clone();
+                                thread::spawn(move || {
+                                    serve_incoming(cid, stream_clone, serv_in_clone);
+                                });
+                            }
+                        },
+                    }
                 }
+            } else {
+                //close the connection
+                println!("Client timeout!");
+                drop(stream);
             }
         }
     }
@@ -98,18 +115,23 @@ fn serve_incoming(c_id : ClientID,
     let mut buf = [0; 1024];
     loop {
         //blocks until something is there
-        let msg : MsgToServer = stream.single_read(&mut buf)
-                                .expect("DISCONNECT MAYBE 2")
-                                .expect("couldn't unwrap single server:107");
-        println!("server incoming read of {:?} from {:?}", &msg, &c_id);
-        serv_in.lock_push_notify(MsgFromClient{msg:msg, cid:c_id})
+        if let Ok(msg) = stream.single_read(&mut buf) {
+            println!("server incoming read of {:?} from {:?}", &msg, &c_id);
+            serv_in.lock_push_notify(MsgFromClient{msg:msg, cid:c_id})
+        } else {
+            println!("INCOMING SERVER DROPPING");
+            drop(stream);
+            break;
+        }
     }
 }
 
 fn serve_outgoing(streams : Arc<Mutex<HashMap<ClientID,TcpStream>>>,
-                  serv_out : Arc<ProtectedQueue<MsgToClientSet>>
+                  serv_out : Arc<ProtectedQueue<MsgToClientSet>>,
+                  userbase : Arc<Mutex<UserBase>>,
               ) {
     println!("Serving outgoing updates");
+    let mut streams_to_remove : Vec<ClientID> = vec![];
     let mut msgsets : Vec<MsgToClientSet> = vec![];
     loop {
         //begin loop
@@ -122,19 +144,32 @@ fn serve_outgoing(streams : Arc<Mutex<HashMap<ClientID,TcpStream>>>,
         {
             //lock streams
             let mut locked_streams = streams.lock().expect("lock streams serve outgoing");
+            println!("have {:?} active clients", locked_streams.len());
+            if !streams_to_remove.is_empty() {
+                for cid in streams_to_remove.drain(..) {
+                    println!("output is pruning stream {}", cid);
+                    locked_streams.remove(&cid);
+                    let mut locked_userbase = userbase.lock().unwrap();
+                    locked_userbase.logout(cid);
+                }
+            }
             for m in msgsets.drain(..) {
                 match m {
-                    MsgToClientSet::Only(msg, c_id) => {
-                        if let Some(stream) = locked_streams.get_mut(&c_id){
-                            println!("server outgoing write of {:?} to {:?}", &msg, &c_id);
-                            stream.single_write(msg).expect("DISCONNECT MAYBE 7");
+                    MsgToClientSet::Only(msg, cid) => {
+                        if let Some(stream) = locked_streams.get_mut(&cid){
+                            println!("server outgoing write of {:?} to {:?}", &msg, &cid);
+                            if let Err(_) = stream.single_write(msg) {
+                                streams_to_remove.push(cid);
+                            }
                         }
                     },
                     MsgToClientSet::All(msg) => {
                         println!("server outgoing write of {:?} to ALL", &msg);
                         let msg_bytes = bincode::serialize(&msg, bincode::Infinite).expect("ech");
-                        for stream in locked_streams.values_mut() {
-                            stream.single_write_bytes(&msg_bytes).expect("DISCONNECT MAYBE 8");
+                        for (cid, stream) in locked_streams.iter_mut() {
+                            if let Err(_) = stream.single_write_bytes(&msg_bytes) {
+                                streams_to_remove.push(*cid);
+                            }
                         }
                     },
                 }

@@ -6,6 +6,7 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use bincode;
 // use serde_json;
+use super::engine::locations::Location;
 use std::path::{Path,PathBuf};
 use std::io::{ErrorKind,Error};
 use std::fs::create_dir;
@@ -20,10 +21,6 @@ pub struct SaverLoader {
 impl SaverLoader {
     pub fn new(save_dir : &str) -> SaverLoader {
         let p = Path::new(save_dir);
-        // if ! Path::new(p).exists() {
-        //     println!("CREATING NEW DIR");
-        //     create_dir(Path::new(p)).expect("Couldn't create new save dir");
-        // }
         let me = SaverLoader {
             save_dir : Box::new(p.to_path_buf())
         };

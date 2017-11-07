@@ -1,7 +1,7 @@
 pub mod game_state;
 mod client_game;
 mod server_game;
-mod locations;
+pub mod locations;
 
 use std::sync::{Arc,Mutex};
 use network::{ProtectedQueue,MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer,ClientID,UserBase};

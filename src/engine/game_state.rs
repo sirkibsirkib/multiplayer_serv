@@ -7,6 +7,10 @@ pub struct GameState {
 }
 
 
+pub type EntityID = u64;
+pub type EntityState = Point;
+
+
 impl GameState {
     pub fn new() -> GameState {
         GameState {
@@ -36,7 +40,6 @@ impl GameState {
     }
 }
 
-pub type EntityID = u64;
 
 
 #[derive(Clone, Debug, Copy, Serialize, Deserialize)]
@@ -46,10 +49,16 @@ pub struct Point {
 }
 
 impl Point {
+    pub fn new(x : f64, y : f64) -> Point {
+        Point {
+            x : x,
+            y : y,
+        }
+    }
     // pub const NULL: Point = Point{x:0.0, y:0.0};
 }
 
-#[derive(Debug)]
+#[derive(Debug,Serialize,Deserialize)]
 pub struct Entity {
     p : Point,
 }
@@ -62,5 +71,10 @@ impl Entity {
     }
     pub fn p(&self) -> &Point {
         &self.p
+    }
+
+    #[inline]
+    pub fn move_to(&mut self, p : Point) {
+        self.p = p;
     }
 }
