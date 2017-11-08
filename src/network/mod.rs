@@ -12,6 +12,7 @@ extern crate byteorder;
 use std::io::prelude::Read;
 use std::io;
 use self::byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
+use super::identity::ClientID;
 
 use std::collections::{HashMap,HashSet};
 use bincode;
@@ -24,7 +25,7 @@ mod client;
 pub mod single;
 pub mod messaging;
 
-use super::engine::game_state::{Point,LocationID};
+use super::engine::game_state::{Point};
 use self::messaging::{MsgFromClient,MsgToClientSet,MsgToClient,MsgToServer};
 
 pub fn get_user_string() -> String {
@@ -140,7 +141,6 @@ pub fn bounded_printable(b : BoundedString) -> String {
     q.trim().to_owned()
 }
 
-pub type ClientID = u16;
 
 pub struct ProtectedQueue<T> {
     queue : Mutex<Vec<T>>,

@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
+use super::super::identity::*;
 pub const UPDATES_PER_SEC : u64 = 32;
-pub type EntityID = u64;
-pub type LocationID = u32;
 
 #[derive(Clone, Debug, Copy, Serialize, Deserialize)]
 pub struct Point {

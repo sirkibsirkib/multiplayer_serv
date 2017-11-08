@@ -1,12 +1,14 @@
 use std::sync::Arc;
-use super::super::network::{ProtectedQueue,ClientID};
+use super::super::network::{ProtectedQueue};
+use super::ClientID;
 use super::super::network::messaging::{MsgToClient,MsgToServer};
+use super::super::identity::{LocationID,EntityID};
 
 extern crate piston_window;
 use self::piston_window::*;
 extern crate rand;
 use self::rand::{SeedableRng, Rng, Isaac64Rng};
-use super::game_state::{Location,LocationID};
+use super::game_state::{Location};
 use std::collections::HashMap;
 
 
@@ -16,12 +18,12 @@ const WIDTH : f64 = 500.0;
 const HEIGHT : f64 = 400.0;
 
 use super::game_state;
-use super::game_state::{Point,EntityID,Entity};
+use super::game_state::{Point,Entity};
 
 struct MyData2 {
     current_lid : LocationID,
     subscriptions : HashMap<LocationID, Location>,
-    
+
 }
 
 struct MyData {

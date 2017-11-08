@@ -1,7 +1,8 @@
 use std::sync::{Arc,Mutex};
 use std::thread;
-use super::{UserBase,ClientID};
+use super::{UserBase};
 use super::{bound_string};
+use super::ClientID;
 
 use super::{ProtectedQueue,MsgFromClient,MsgToClientSet,MsgToClient,MsgToServer};
 

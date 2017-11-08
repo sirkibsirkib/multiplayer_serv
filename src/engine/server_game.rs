@@ -1,5 +1,6 @@
 use super::game_state;
-use super::game_state::{EntityID,Entity,Point,LocationID};
+use super::game_state::{Entity,Point};
+use super::super::identity::{EntityID,LocationID};
 use super::server_game_state::{LocationLoader,START_LOCATION};
 
 use std::time::Duration;
@@ -8,7 +9,8 @@ use std::time;
 use std::collections::HashMap;
 
 use super::super::network::messaging::{MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer};
-use super::super::network::{ProtectedQueue,ClientID,UserBase};
+use super::super::network::{ProtectedQueue,UserBase};
+use super::ClientID;
 use std::thread;
 use super::SaverLoader;
 

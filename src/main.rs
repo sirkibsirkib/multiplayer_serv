@@ -10,14 +10,14 @@ extern crate serde;
 extern crate serde_derive;
 extern crate bincode;
 
-// extern crate bidir_map;
-
 mod network;
 mod engine;
 mod setup;
 mod saving;
+mod identity;
 
-use network::{ProtectedQueue,UserBase,ClientID};
+use identity::ClientID;
+use network::{ProtectedQueue,UserBase};
 use network::messaging::{MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer};
 use setup::RunMode;
 use saving::SaverLoader;

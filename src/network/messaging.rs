@@ -1,7 +1,8 @@
 
 use serde::{Serialize,Deserialize};
 use super::{ClientID,BoundedString,UserBaseError};
-use super::super::engine::game_state::{EntityID,LocationID,Point};
+use super::super::identity::{EntityID,LocationID};
+use super::super::engine::game_state::{Point};
 
 //PRIMITIVE
 #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
