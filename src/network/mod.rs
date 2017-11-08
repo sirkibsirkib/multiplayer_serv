@@ -9,17 +9,17 @@ use std;
 use super::saving::SaverLoader;
 use std::io::{ErrorKind};
 
-// use super::bidir_map::BidirMap;
 use std::collections::{HashMap,HashSet};
 use bincode;
 use serde::{Serialize,Deserialize};
 
-use super::engine::game_state::{EntityID,Point};
-use super::engine::locations::LocationID;
-
 mod server;
 mod client;
 mod single;
+pub mod messaging;
+
+use super::engine::game_state::{Point,LocationID};
+use self::messaging::{MsgFromClient,MsgToClientSet,MsgToClient,MsgToServer};
 
 /*
 Creates autonomous server that will attempt to drain server_in and populate server_out.
@@ -123,50 +123,47 @@ pub fn bounded_printable(b : BoundedString) -> String {
 pub type ClientID = u16;
 pub const SINGLE_PLAYER_CID : ClientID = 0;
 
-//PRIMITIVE
-#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
-pub enum MsgToServer {
-    RequestControlOf(EntityID),
-    RelinquishControlof(EntityID),
-    CreateEntity(EntityID,Point),
-    ControlMoveTo(LocationID,EntityID,Point),
-    //username, password_hash
-    ClientLogin(BoundedString,BoundedString),
-    RequestEntityData(EntityID),
-    RequestControlling,
-    RequestLocationData(LocationID),
-}
-
-//PRIMITIVE
-#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
-pub enum MsgToClient {
-    GiveEntityData(EntityID,LocationID,Point),
-    GiveControlling(Option<(EntityID,LocationID)>),
-    CreateEntity(EntityID,Point),
-    YouNowControl(EntityID),
-    YouNoLongerControl(EntityID),
-    EntityMoveTo(EntityID,Point),
-    LoginSuccessful(ClientID),
-    LoginFailure(UserBaseError),
-}
-
-
-//WRAPS MsgToServer
-#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
-pub struct MsgFromClient {
-    pub msg : MsgToServer,
-    pub cid : ClientID,
-}
-
-//WRAPS MsgToClient
-#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
-pub enum MsgToClientSet {
-    Only(MsgToClient, ClientID),
-    All(MsgToClient),
-    // AllExcept(MsgToClient, ClientID),
-    // AnyOne(MsgToClient),
-    // Specifically(MsgToClient, HashSet<ClientID>),
-}
+// //PRIMITIVE
+// #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
+// pub enum MsgToServer {
+//     RequestControlOf(EntityID),
+//     RelinquishControlof(EntityID),
+//     CreateEntity(EntityID,Point),
+//     ControlMoveTo(LocationID,EntityID,Point),
+//     //username, password_hash
+//     ClientLogin(BoundedString,BoundedString),
+//     RequestEntityData(EntityID),
+//     RequestControlling,
+//     RequestLocationData(LocationID),
+// }
+//
+// //PRIMITIVE
+// #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
+// pub enum MsgToClient {
+//     GiveEntityData(EntityID,LocationID,Point),
+//     GiveControlling(Option<(EntityID,LocationID)>),
+//     CreateEntity(EntityID,Point),
+//     YouNowControl(EntityID),
+//     YouNoLongerControl(EntityID),
+//     EntityMoveTo(EntityID,Point),
+//     LoginSuccessful(ClientID),
+//     LoginFailure(UserBaseError),
+// }
+//
+//
+// //WRAPS MsgToServer
+// #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
+// pub struct MsgFromClient {
+//     pub msg : MsgToServer,
+//     pub cid : ClientID,
+// }
+//
+// //WRAPS MsgToClient
+// #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
+// pub enum MsgToClientSet {
+//     Only(MsgToClient, ClientID),
+//     All(MsgToClient),
+// }
 
 pub struct ProtectedQueue<T> {
     queue : Mutex<Vec<T>>,

@@ -1,10 +1,11 @@
 pub mod game_state;
 mod client_game;
 mod server_game;
-pub mod locations;
+pub mod server_game_state;
 
 use std::sync::{Arc,Mutex};
-use network::{ProtectedQueue,MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer,ClientID,UserBase};
+use network::messaging::{MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer};
+use network::{ProtectedQueue,ClientID,UserBase};
 
 use super::saving::SaverLoader;
 

@@ -1,12 +1,14 @@
 use super::game_state;
-use super::game_state::{GameState,EntityID,Entity,Point};
-use super::locations::{Location,LocationLoader,START_LOCATION,LocationID};
+use super::game_state::{EntityID,Entity,Point,LocationID};
+use super::server_game_state::{LocationLoader,START_LOCATION};
 
 use std::time::Duration;
 use std::sync::{Arc,Mutex};
 use std::time;
 use std::collections::HashMap;
-use super::super::network::{ProtectedQueue,MsgFromClient,MsgToClientSet,ClientID,MsgToClient,MsgToServer,UserBase};
+
+use super::super::network::messaging::{MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer};
+use super::super::network::{ProtectedQueue,ClientID,UserBase};
 use std::thread;
 use super::SaverLoader;
 
@@ -93,41 +95,6 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
     if let Some(drained) = serv_in.impatient_drain() {
         for d in drained {
             match d.msg {
-                // MsgToServer::LoadEntities => {
-                //     for e in global_state.entity_iterator() {
-                //         outgoing_updates.push(
-                //             MsgToClientSet::Only(MsgToClient::CreateEntity(*e.0,*e.1.p()), d.cid)
-                //         );
-                //     }
-                // }
-                // MsgToServer::RequestControlOf(eid) => {
-                //
-                //     if global_state.entity_exists(eid) {
-                //         player_controlling.insert(d.cid, eid);
-                //         outgoing_updates.push(
-                //             MsgToClientSet::Only(MsgToClient::YouNowControl(eid), d.cid)
-                //         );
-                //     }
-                //     // try_add_control(d.cid, eid, global_state, player_controlling);
-                //
-                // },
-                // MsgToServer::CreateEntity(eid,pt) => {
-                //     global_state.add_entity(eid, Entity::new(pt));
-                //     outgoing_updates.push(
-                //         MsgToClientSet::All(MsgToClient::CreateEntity(eid,pt))
-                //     );
-                // },
-                // MsgToServer::ControlMoveTo(eid,pt) => {
-                //     if player_controlling.get(&d.cid) == Some(&eid) {
-                //         global_state.entity_move_to(eid, pt);
-                //         outgoing_updates.push(
-                //             MsgToClientSet::All(MsgToClient::EntityMoveTo(eid, pt))
-                //         );
-                //     }
-                //     // if client_controls(d.cid, eid, player_controlling) {
-                //     //
-                //     // }
-                // },
                 MsgToServer::ControlMoveTo(lid,eid,pt) => {
                     if Some(&(eid,lid)) == server_data.cid_to_controlling.get(&d.cid) {
                         println!("You DO have permission to ctrl move that!");

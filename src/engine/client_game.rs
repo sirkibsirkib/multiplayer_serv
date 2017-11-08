@@ -1,11 +1,13 @@
 use std::sync::Arc;
-use super::super::network::{ProtectedQueue,MsgToClient,MsgToServer,ClientID};
+use super::super::network::{ProtectedQueue,ClientID};
+use super::super::network::messaging::{MsgToClient,MsgToServer};
 
 extern crate piston_window;
 use self::piston_window::*;
 extern crate rand;
 use self::rand::{SeedableRng, Rng, Isaac64Rng};
-use super::locations::{Location,LocationID};
+use super::game_state::{Location,LocationID};
+use std::collections::HashMap;
 
 
 extern crate find_folder;
@@ -14,9 +16,16 @@ const WIDTH : f64 = 500.0;
 const HEIGHT : f64 = 400.0;
 
 use super::game_state;
-use super::game_state::{GameState,Point,EntityID,Entity};
+use super::game_state::{Point,EntityID,Entity};
+
+struct MyData2 {
+    current_lid : LocationID,
+    subscriptions : HashMap<LocationID, Location>,
+    
+}
 
 struct MyData {
+
     lid : Option<LocationID>,
     viewing : Option<Location>,
     controlling : Option<(EntityID,LocationID)>,
@@ -46,37 +55,13 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
             &TextureSettings::new()
         ).unwrap();
 
-    // let mut next_eid = (c_id as u64 + 1) << 40; // this gives the server +40 bits of reserved eids
-
-    // let mut local_state = GameState::new();
-
     // this is just a local vector to batch requests. populating this essentially populates client_out
     let mut outgoing_update_requests : Vec<MsgToServer> = vec![];
-
-    // to help it know which eid the user is attempting to manipulate with movement
-    // let mut controlling : Box<Option<EntityID>> = Box::None;
-
-    // let mut viewing_location : Option<LocationID> = None;
-    // let mut location : Option<Location> = None;
-
-    // outgoing_update_requests.push(
-    //     MsgToServer::CreateEntity(next_eid, Point{x:r.gen::<f64>(), y:r.gen::<f64>()})
-    // );
-    // let mut r = Isaac64Rng::from_seed(&[c_id as u64]);
 
     outgoing_update_requests.push(
         MsgToServer::RequestControlling
     );
     println!("Client game loop");
-    // println!("my seed is {}", c_id);
-    // outgoing_update_requests.push(
-    //     MsgToServer::CreateEntity(next_eid, Point{x:r.gen::<f64>(), y:r.gen::<f64>()})
-    // );
-    // outgoing_update_requests.push(
-    //     MsgToServer::RequestControlOf(next_eid)
-    // );
-    // next_eid += 1;
-
     let mut mouse_at : Option<[f64 ; 2]> = None;
     while let Some(e) = window.next() {
 
@@ -121,17 +106,6 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
         for d in drained {
             use MsgToClient::*;
             match d {
-                // CreateEntity(eid,pt) => {
-                //     my_data..add_entity(eid,Entity::new(pt))
-                // },
-                // YouNowControl(eid) => {*controlling = Some(eid)},
-                // YouNoLongerControl(eid) => {
-                //     if let &mut Some(existing_eid) = controlling {
-                //         if existing_eid == eid {
-                //             *controlling = None;
-                //         }
-                //     }
-                // },
                 GiveEntityData(eid, lid, pt) => {
                     if let Some(ref mut loc) = my_data.viewing {
                         loc.place_inside(eid, Entity::new(pt));

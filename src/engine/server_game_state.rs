@@ -1,69 +1,13 @@
 use std::time::{Instant,Duration};
-use std::fs::File;
-use std::io::{Read,Write};
+use std::io::Write;
 use std::collections::HashMap;
 use super::SaverLoader;
-use super::game_state::{EntityID,Entity,Point};
+use super::game_state::{EntityID,Entity,Point,LocationID,Location};
+use std::collections::HashSet;
+use super::super::network::ClientID;
+use super::super::network::messaging::MsgToClient;
 
-pub type LocationID = u32;
 pub const START_LOCATION : LocationID = 0;
-
-pub struct UniversalCoord {
-    lid : LocationID,
-    x : u32,
-    y : u32,
-}
-
-#[derive(Debug,Serialize,Deserialize)]
-pub struct Location {
-    entities : HashMap<EntityID, Entity>,
-}
-
-impl Location {
-
-    pub fn new() -> Location {
-        Location {
-            entities : HashMap::new(),
-        }
-    }
-
-    pub fn start_location() -> Location {
-        Location {
-            entities : HashMap::new(),
-        }
-    }
-
-    pub fn filename(lid : LocationID) -> String {
-        format!("loc_{}", lid)
-    }
-
-
-
-    pub fn contains_entity(&self, eid : EntityID) -> bool {
-        self.entities.contains_key(&eid)
-    }
-
-    pub fn place_inside(&mut self, eid : EntityID, e : Entity) {
-        self.entities.insert(eid, e);
-    }
-
-    // pub fn add_entity(&mut self, id : EntityID, e : Entity) {
-    //     self.entities.insert(id, e);
-    // }
-
-    pub fn entity_move_to(&mut self, id : EntityID, pt : Point) {
-        //TODO count synch errors. when you pass a threshold you trigger a RESYNCH
-        if let Some(x) = self.entities.get_mut(& id) {
-            x.move_to(pt);
-        }
-    }
-
-    pub fn entity_iterator<'a>(&'a self) -> Box<Iterator<Item=(&EntityID,&Entity)> + 'a> {
-        Box::new(
-            self.entities.iter()
-        )
-    }
-}
 
 
 #[derive(Debug)]
@@ -72,23 +16,34 @@ struct TimestampedLocation {
     loaded_at : Instant,
 }
 
+struct LocationGuard {
+    loc : Location,
+    diffs : Vec<MsgToClient>,
+}
+
 pub struct LocationLoader {
     sl : SaverLoader,
+    background_retention : Duration,
+
+    subscriptions : HashMap<LocationID,HashSet<ClientID>>,
     background : HashMap<LocationID, TimestampedLocation>,
     foreground : HashMap<LocationID, Location>,
-    unloaded_since : HashMap<LocationID, Instant>,
-    background_retention : Duration,
+
+    last_simulated : HashMap<LocationID,Instant>,
+    last_backgrounded : HashMap<LocationID,Instant>,
 }
 
 impl LocationLoader {
     pub fn new(background_retention : Duration, sl : SaverLoader) -> LocationLoader {
         LocationLoader {
             sl : sl,
+            subscriptions :  HashMap::new(),
             background : HashMap::new(),
             foreground : HashMap::new(),
 
             // when it unloads a file, it logs a time. it will return the duration since then until you consume() it
-            unloaded_since : HashMap::new(),
+            last_simulated : HashMap::new(),
+            last_backgrounded : HashMap::new(),
             background_retention : background_retention,
         }
     }
@@ -152,21 +107,13 @@ impl LocationLoader {
         for lid in remove_lids {
             self.background.remove(&lid);
             println!("Unloading background LID{:?}", lid);
-            self.unloaded_since.insert(lid, nowish);
+            self.last_simulated.insert(lid, nowish);
         }
     }
 
     pub fn loaded(&self, lid : LocationID) -> bool {
         self.foreground.contains_key(& lid)
         || self.background.contains_key(& lid)
-    }
-
-    pub fn consume_unloaded_duration(&mut self, lid : LocationID) -> Option<Duration> {
-        if let Some(dur) = self.unloaded_since.remove(&lid) {
-            Some(dur.elapsed())
-        } else {
-            return None;
-        }
     }
 
 

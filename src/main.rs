@@ -17,7 +17,8 @@ mod engine;
 mod setup;
 mod saving;
 
-use network::{ProtectedQueue,MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer,UserBase};
+use network::{ProtectedQueue,UserBase};
+use network::messaging::{MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer};
 use setup::RunMode;
 use saving::SaverLoader;
 
