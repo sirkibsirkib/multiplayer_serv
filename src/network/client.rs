@@ -1,11 +1,9 @@
 use super::{ProtectedQueue,MsgToClient,MsgToServer,ClientID};
 use std::sync::Arc;
-use std::io::Write;
 use std::net::TcpStream;
 use std::thread;
 use bincode;
 use std::time;
-use std::io::{stdin,stdout};
 use super::bound_string;
 use super::UserBaseError;
 
@@ -23,28 +21,15 @@ pub fn client_enter(stream : TcpStream,
     client_outgoing(stream_clone, client_out);
 }
 
-pub fn get_user_string() -> String {
-    let mut s = String::new();
-    let _ = stdout().flush();
-    stdin().read_line(&mut s).expect("Did not enter a correct string");
-    if let Some('\n')=s.chars().next_back() {
-        s.pop();
-    }
-    if let Some('\r')=s.chars().next_back() {
-        s.pop();
-    }
-    s
-}
-
 pub fn client_instigate_handshake(stream : &mut TcpStream) -> ClientID {
     let mut buf = [0; 1024];
     let short_timeout = time::Duration::from_millis(100);
     stream.set_read_timeout(Some(short_timeout)).is_ok();
 
     print!("Please give username: ");
-    let username = bound_string(get_user_string());
+    let username = bound_string(super::get_user_string());
     print!("Please give password: ");
-    let password = bound_string(get_user_string());
+    let password = bound_string(super::get_user_string());
 
     //pre-build password bytes
     // let password_msg = serde_json::to_string(&MsgToServer::ClientLogin(username, password)).expect("handshake to str");

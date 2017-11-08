@@ -17,7 +17,7 @@ mod engine;
 mod setup;
 mod saving;
 
-use network::{ProtectedQueue,UserBase};
+use network::{ProtectedQueue,UserBase,ClientID};
 use network::messaging::{MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer};
 use setup::RunMode;
 use saving::SaverLoader;
@@ -49,7 +49,6 @@ fn main() {
             let client_in2 = client_in.clone();
             let client_out : Arc<ProtectedQueue<MsgToServer>> = Arc::new(ProtectedQueue::new());
             let client_out2 = client_out.clone();
-
 
             //spawns client in new threads, returns our server-issued client ID. mostly useful for debugging tbh
             let c_id = network::spawn_client(
@@ -121,13 +120,15 @@ fn main() {
             let userbase : Arc<Mutex<UserBase>> = Arc::new(Mutex::new(raw_userbase));
 
             //spawns a coupler in new threads.
-            network::spawn_coupler(server_in, server_out, client_in, client_out);
+            let cid : ClientID = network::single::single_player_login(&userbase);
+            println!("single login {:?}", cid);
+            network::spawn_coupler(server_in, server_out, client_in, client_out, cid);
             thread::spawn(move || {
                 engine::server_engine(server_in2, server_out2, userbase, sl);
             });
             //consumes this thread to create client-side aka `local` game loop & engine
             //main thread == client thread. So if piston exists, everything exits
-            engine::client_engine(client_in2, client_out2, network::SINGLE_PLAYER_CID)
+            engine::client_engine(client_in2, client_out2, cid)
         }
     }
 }

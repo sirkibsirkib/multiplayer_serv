@@ -68,15 +68,11 @@ impl LocationLoader {
         }
     }
 
-    pub fn get_mut_foreground(&mut self, lid : LocationID) -> &mut Location {
-        self.load(lid)
+    pub fn load_foreground(&mut self, lid : LocationID) -> &Location {
+        self.load_foreground_mut(lid)
     }
 
-    pub fn get_foreground(&mut self, lid : LocationID) -> &Location {
-        self.load(lid)
-    }
-
-    pub fn load(&mut self, lid : LocationID) -> &mut Location {
+    pub fn load_foreground_mut(&mut self, lid : LocationID) -> &mut Location {
         if ! self.foreground.contains_key(& lid) {
             if let Some(timestamped_loc) = self.background.remove(& lid) {
                 // upgrade background --> foreground

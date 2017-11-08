@@ -8,18 +8,37 @@ use std::path::Path;
 use std;
 use super::saving::SaverLoader;
 use std::io::{ErrorKind};
+extern crate byteorder;
+use std::io::prelude::Read;
+use std::io;
+use self::byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 
 use std::collections::{HashMap,HashSet};
 use bincode;
 use serde::{Serialize,Deserialize};
+use std::io::Write;
+use std::io::{stdin,stdout};
 
 mod server;
 mod client;
-mod single;
+pub mod single;
 pub mod messaging;
 
 use super::engine::game_state::{Point,LocationID};
 use self::messaging::{MsgFromClient,MsgToClientSet,MsgToClient,MsgToServer};
+
+pub fn get_user_string() -> String {
+    let mut s = String::new();
+    let _ = stdout().flush();
+    stdin().read_line(&mut s).expect("Did not enter a correct string");
+    if let Some('\n')=s.chars().next_back() {
+        s.pop();
+    }
+    if let Some('\r')=s.chars().next_back() {
+        s.pop();
+    }
+    s
+}
 
 /*
 Creates autonomous server that will attempt to drain server_in and populate server_out.
@@ -93,9 +112,10 @@ pub fn spawn_coupler(server_in : Arc<ProtectedQueue<MsgFromClient>>,
                      server_out : Arc<ProtectedQueue<MsgToClientSet>>,
                      client_in : Arc<ProtectedQueue<MsgToClient>>,
                      client_out : Arc<ProtectedQueue<MsgToServer>>,
+                     cid : ClientID,
                  ) {
     thread::spawn(move || {
-        single::coupler_enter(server_in, server_out, client_in, client_out);
+        single::coupler_enter(server_in, server_out, client_in, client_out, cid);
     });
 }
 
@@ -121,7 +141,6 @@ pub fn bounded_printable(b : BoundedString) -> String {
 }
 
 pub type ClientID = u16;
-pub const SINGLE_PLAYER_CID : ClientID = 0;
 
 pub struct ProtectedQueue<T> {
     queue : Mutex<Vec<T>>,
@@ -179,16 +198,6 @@ impl<T> ProtectedQueue<T> {
     }
 }
 
-// use serde_json;
-
-// use serde::de::Deserialize;
-// use serde::ser::Serialize;
-extern crate byteorder;
-use std::io::Write;
-use std::io::prelude::Read;
-use std::io;
-
-use self::byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 
 trait SingleStream {
     fn single_read<'a, S>(&mut self, buf : &'a mut [u8]) -> Result<S, io::Error>

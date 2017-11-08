@@ -112,7 +112,7 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                 MsgToServer::ControlMoveTo(lid,eid,pt) => {
                     if Some(&(eid,lid)) == server_data.cid_to_controlling.get(&d.cid) {
                         println!("You DO have permission to ctrl move that!");
-                        location_loader.get_mut_foreground(lid)
+                        location_loader.load_foreground_mut(lid)
                         .entity_move_to(eid, pt);
                             //TODO populate diffs
                         outgoing_updates.push(
@@ -125,7 +125,7 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                     }
                 }
                 MsgToServer::RequestLocationData(lid) => {
-                    let l = location_loader.get_foreground(lid);
+                    let l = location_loader.load_foreground(lid);
                     println!(">> loc get got {:?}", &l);
                     for (eid, ent) in l.entity_iterator() {
                         println!(">> informing client{:?} of eid {:?} {:?}", &d.cid, eid, &ent);
@@ -146,7 +146,7 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                             let player_eid = server_data.use_next_eid();
                             locked_ub.set_client_setup_true(d.cid);
                             server_data.cid_to_controlling.insert(d.cid, (player_eid,START_LOCATION));
-                            location_loader.load(START_LOCATION)
+                            location_loader.load_foreground_mut(START_LOCATION)
                                 .place_inside(player_eid, Entity::new(Point::new(0.5,0.5)));
                         }
                     }
