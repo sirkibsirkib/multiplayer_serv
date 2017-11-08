@@ -34,6 +34,13 @@ pub struct LocationLoader {
 }
 
 impl LocationLoader {
+    pub fn save_all_locations(&self) {
+        for (lid, loc) in self.foreground_background_iter() {
+            println!("saving loc {:?}", lid);
+            self.sl.save_me(loc, & Location::filepath(*lid));
+        }
+    }
+
     pub fn new(background_retention : Duration, sl : SaverLoader) -> LocationLoader {
         LocationLoader {
             sl : sl,
@@ -62,11 +69,11 @@ impl LocationLoader {
     }
 
     pub fn get_mut_foreground(&mut self, lid : LocationID) -> &mut Location {
-        self.foreground.get_mut(&lid).unwrap()
+        self.load(lid)
     }
 
-    pub fn get_foreground(&self, lid : LocationID) -> &Location {
-        self.foreground.get(&lid).unwrap()
+    pub fn get_foreground(&mut self, lid : LocationID) -> &Location {
+        self.load(lid)
     }
 
     pub fn load(&mut self, lid : LocationID) -> &mut Location {
@@ -78,7 +85,7 @@ impl LocationLoader {
             } else {
                 //fresh load from file
                 println!("Loading background LID {:?}", &lid);
-                match self.sl.load_me(& Location::filename(lid)){
+                match self.sl.load_me(& Location::filepath(lid)){
                     Ok(l) => {
                         self.foreground.insert(lid, l);
                     },
@@ -99,7 +106,7 @@ impl LocationLoader {
         for (k, v) in self.background.iter_mut() {
             if v.loaded_at.elapsed() > self.background_retention {
                 //unload
-                self.sl.save_me(k, & Location::filename(*k));
+                self.sl.save_me(k, & Location::filepath(*k));
                 remove_lids.push(*k);
             }
         }
@@ -116,16 +123,28 @@ impl LocationLoader {
         || self.background.contains_key(& lid)
     }
 
-
-    pub fn foreground_iter_mut<'a>(&'a mut self) -> Box<Iterator<Item=(&mut Location)> + 'a> {
+    pub fn foreground_iter<'a>(&'a self) -> Box<Iterator<Item=(&LocationID, &Location)> + 'a> {
         Box::new(
-            self.foreground.values_mut().map(|x| &mut(*x))
+            self.foreground.iter()
         )
     }
 
-    pub fn background_iter_mut<'a>(&'a mut self) -> Box<Iterator<Item=(&mut Location)> + 'a> {
+    pub fn foreground_background_iter<'a>(&'a self) -> Box<Iterator<Item=(&LocationID, &Location)> + 'a> {
         Box::new(
-            self.background.values_mut().map(|x| &mut x.location)
+            self.foreground_iter().chain(self.background_iter())
+        )
+    }
+
+    pub fn foreground_iter_mut<'a>(&'a mut self) -> Box<Iterator<Item=(&LocationID, &mut Location)> + 'a> {
+        Box::new(
+            self.foreground.iter_mut()
+        )
+    }
+
+    pub fn background_iter<'a>(&'a self) -> Box<Iterator<Item=(&LocationID, &Location)> + 'a> {
+        Box::new(
+            self.background.iter()
+            .map(|x| (x.0, &x.1.location))
         )
     }
 }

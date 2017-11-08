@@ -38,8 +38,8 @@ impl Location {
         }
     }
 
-    pub fn filename(lid : LocationID) -> String {
-        format!("loc_{}", lid)
+    pub fn filepath(lid : LocationID) -> String {
+        format!("locations/loc_{}", lid)
     }
 
 
