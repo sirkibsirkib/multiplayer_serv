@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use super::super::network::{ProtectedQueue};
 use super::ClientID;
-use super::super::network::messaging::{MsgToClient,MsgToServer};
+use super::super::network::messaging::{MsgToClient,MsgToServer,Diff};
 use super::super::identity::{LocationID,EntityID};
 
 extern crate piston_window;
@@ -20,16 +20,52 @@ const HEIGHT : f64 = 400.0;
 use super::game_state;
 use super::game_state::{Point,Entity};
 
-struct MyData2 {
-    current_lid : LocationID,
-    subscriptions : HashMap<LocationID, Location>,
+// struct MyData2 {
+//     current_lid : LocationID,
+//     subscriptions : HashMap<LocationID, Location>,
+// }
 
+// By default when zoom==1, View represents a size of 50m wide by 40m high
+
+struct View {
+    h_rad_units : f64,
+    v_rad_units : f64,
+    eid : EntityID,
+    location : Location,
+    zoom : f64,
+}
+
+impl View {
+    fn translate_screenpt(&self, screen_pt : [f64;2]) -> Point {
+        let prim = self.location.get_location_primitive();
+        [
+            (screen_pt[0]/WIDTH * prim.cells_wide as f64) as i16,
+            (screen_pt[1]/HEIGHT * prim.cells_high as f64) as i16,
+        ]
+        //[0,0] is topleft  [WIDTH,HEIGHT] is top right
+        //TODO complex shit
+        // let relative = [screen_pt[0]-0.5, screen_pt[1]-0.5];
+        // let e_at : Point = self.location.point_of(self.eid).expect("VIEW CANT FIND");
+        // let cell_width = self.location.get_cell_width();
+        // [
+        //     (relative[0] * self.h_rad_units/cell_width as f64) as i16 + e_at[0],
+        //     (relative[1] * self.v_rad_units/cell_width as f64) as i16 + e_at[1],
+        // ]
+    }
+
+    //TODO what happens when outside screen?
+    fn translate_pt(&self, pt : Point) -> [f64;2] {
+        //TODO make not stupid
+        let prim = self.location.get_location_primitive();
+        [
+            pt[0] as f64 / prim.cells_wide as f64 * WIDTH,
+            pt[1] as f64 / prim.cells_high as f64 * HEIGHT,
+        ]
+    }
 }
 
 struct MyData {
-
-    lid : Option<LocationID>,
-    viewing : Option<Location>,
+    view : Option<View>,
     controlling : Option<(EntityID,LocationID)>,
     cid : ClientID,
 }
@@ -39,9 +75,8 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
                  client_out : Arc<ProtectedQueue<MsgToServer>>,
                  cid : ClientID) {
     let mut window = init_window();
-    let mut my_data = MyData{
-        lid : None,
-        viewing : None,
+    let mut my_data = MyData {
+        view : None,
         controlling : None,
         cid : cid,
     };
@@ -79,12 +114,17 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
         }
         if let Some(button) = e.release_args() {
             if button == Button::Mouse(MouseButton::Left) {
-                if let Some(m) = mouse_at {
-                    if let Some((eid, _)) = my_data.controlling {
-                        let p = Point {x:m[0]/WIDTH, y:m[1]/HEIGHT};
-                        outgoing_update_requests.push(
-                            MsgToServer::ControlMoveTo(my_data.controlling.unwrap().1, eid, p)
-                        );
+                if let Some(ref mut v) = my_data.view {
+                    if let Some(m) = mouse_at {
+                        if let Some((eid, _)) = my_data.controlling {
+                            outgoing_update_requests.push(
+                                MsgToServer::ControlMoveTo(
+                                    my_data.controlling.unwrap().1,
+                                    eid,
+                                    v.translate_screenpt(m),
+                                )
+                            );
+                        }
                     }
                 }
             }
@@ -109,38 +149,36 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
             use MsgToClient::*;
             match d {
                 GiveEntityData(eid, lid, pt) => {
-                    if let Some(ref mut loc) = my_data.viewing {
-                        loc.place_inside(eid, Entity::new(pt));
+                    if let Some(ref mut view) = my_data.view {
+                        view.location.apply_diff(Diff::PlaceInside(eid,pt));
                     }
                 },
                 EntityMoveTo(eid,pt) => {
-                    if let Some(ref mut loc) = my_data.viewing {
-                        loc.entity_move_to(eid,pt);
+                    if let Some(ref mut view) = my_data.view {
+                        view.location.apply_diff(Diff::MoveEntityTo(eid,pt));
                     }
                 },
-                GiveControlling(maybe_eid_and_lid) => {
-                    if my_data.controlling != maybe_eid_and_lid {
-                        if let Some(x) = maybe_eid_and_lid {
-                            let mut need_to_load = false;
-                            if let Some((_, b)) = my_data.controlling{
-                                if x.1 != b {
-                                    need_to_load = true;
-                                }
-                            } else {
-                                need_to_load = true;
-                            }
-                            if need_to_load {
-                                //change location
-                                my_data.viewing = Some(Location::new());
-                                outgoing_update_requests.push(
-                                    MsgToServer::RequestLocationData(x.1)
-                                );
-                            }
-                            my_data.controlling = Some(x);
-                        } else {
-                            my_data.controlling = None;
-                            my_data.viewing = None;
+                GiveLocationPrimitive(lid, loc_prim) => {
+
+                },
+                GiveControlling(eid, lid) => {
+                    let mut going_to_new_loc = false;
+                    if let Some((my_eid, my_lid)) = my_data.controlling {
+                        // I am already controlling something!
+                        if my_lid != lid {
+                            // new location!
+                            going_to_new_loc = true;
                         }
+                    } else {
+                        // I am controlling nothing!
+                        going_to_new_loc = true;
+                    }
+                    my_data.controlling = Some((eid,lid));
+                    if going_to_new_loc {
+                        my_data.view = None; //subsequent message will populate this
+                        outgoing_update_requests.push(
+                            MsgToServer::RequestLocationData(lid)
+                        ); // request data to populate `my_data.viewing`
                     }
                 }
                 _ => {
@@ -164,20 +202,21 @@ fn am_controlling(eid : EntityID, my_data : &MyData) -> bool {
 }
 
 fn render_location(event : &Event, window : &mut PistonWindow, my_data : &mut MyData) {
-    if let Some(ref loc) = my_data.viewing {
-        for (eid, e) in loc.entity_iterator() {
+    if let Some(ref v) = my_data.view {
+        for (eid, pt) in v.location.entity_iterator() {
             let col = if am_controlling(*eid, &my_data) {
                 [0.0, 1.0, 0.0, 1.0] //green
             } else {
                 [0.7, 0.7, 0.7, 1.0] //gray
             };
             let rad = 10.0;
+            let screen_pt = v.translate_pt(*pt);
             window.draw_2d(event, |context, graphics| {
                         ellipse(
                             col,
                             [
-                                (e.p().x as f64)*WIDTH - rad,
-                                (e.p().y as f64)*HEIGHT - rad,
+                                screen_pt[0] - rad,
+                                screen_pt[1] - rad,
                                 rad*2.0,
                                 rad*2.0
                             ],

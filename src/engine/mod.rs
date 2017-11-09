@@ -4,7 +4,7 @@ mod server_game;
 pub mod server_game_state;
 
 use std::sync::{Arc,Mutex};
-use network::messaging::{MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer};
+use network::messaging::{MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer,Diff};
 use network::{ProtectedQueue,UserBase};
 use super::identity::ClientID;
 

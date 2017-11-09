@@ -2,7 +2,14 @@
 use serde::{Serialize,Deserialize};
 use super::{ClientID,BoundedString,UserBaseError};
 use super::super::identity::{EntityID,LocationID};
-use super::super::engine::game_state::{Point};
+use super::super::engine::game_state::{Point,LocationPrimitive};
+
+//change applied to a SINGLE location
+#[derive(Clone,Copy,Serialize,Deserialize,Debug)]
+pub enum Diff {
+    MoveEntityTo(EntityID,Point),
+    PlaceInside(EntityID,Point),
+}
 
 //PRIMITIVE
 #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
@@ -22,7 +29,8 @@ pub enum MsgToServer {
 #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub enum MsgToClient {
     GiveEntityData(EntityID,LocationID,Point),
-    GiveControlling(Option<(EntityID,LocationID)>),
+    GiveControlling(EntityID,LocationID),
+    GiveLocationPrimitive(LocationID,LocationPrimitive),
     CreateEntity(EntityID,Point),
     YouNowControl(EntityID),
     YouNoLongerControl(EntityID),

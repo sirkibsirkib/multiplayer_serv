@@ -8,7 +8,7 @@ use std::sync::{Arc,Mutex};
 use std::time;
 use std::collections::HashMap;
 
-use super::super::network::messaging::{MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer};
+use super::super::network::messaging::{MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer,Diff};
 use super::super::network::{ProtectedQueue,UserBase};
 use super::ClientID;
 use std::thread;
@@ -46,10 +46,7 @@ pub fn game_loop(serv_in : Arc<ProtectedQueue<MsgFromClient>>,
                 cid_to_controlling : HashMap::new(),
             }
         }
-    }
-
-
-    ;
+    };
 
     // let mut global_state : GameState = GameState::new();
 
@@ -114,9 +111,7 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                 MsgToServer::ControlMoveTo(lid,eid,pt) => {
                     if Some(&(eid,lid)) == server_data.cid_to_controlling.get(&d.cid) {
                         println!("You DO have permission to ctrl move that!");
-                        location_loader.load_foreground_mut(lid)
-                        .entity_move_to(eid, pt);
-                            //TODO populate diffs
+                        location_loader.apply_diff_to(lid, Diff::MoveEntityTo(eid,pt),false);
                         outgoing_updates.push(
                             MsgToClientSet::All (
                                 MsgToClient::GiveEntityData(eid,lid,pt),
@@ -127,13 +122,11 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                     }
                 }
                 MsgToServer::RequestLocationData(lid) => {
-                    let l = location_loader.load_foreground(lid);
-                    println!(">> loc get got {:?}", &l);
-                    for (eid, ent) in l.entity_iterator() {
-                        println!(">> informing client{:?} of eid {:?} {:?}", &d.cid, eid, &ent);
+                    for (eid, pt) in location_loader.entity_iterator(lid) {
+                        println!(">> informing client{:?} of eid {:?} {:?}", &d.cid, eid, pt);
                         outgoing_updates.push(
                             MsgToClientSet::Only(
-                                MsgToClient::GiveEntityData(*eid,lid,*ent.p()),
+                                MsgToClient::GiveEntityData(*eid,lid,*pt),
                                 d.cid,
                             )
                         );
@@ -148,18 +141,24 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                             let player_eid = server_data.use_next_eid();
                             locked_ub.set_client_setup_true(d.cid);
                             server_data.cid_to_controlling.insert(d.cid, (player_eid,START_LOCATION));
-                            location_loader.load_foreground_mut(START_LOCATION)
-                                .place_inside(player_eid, Entity::new(Point::new(0.5,0.5)));
+                            location_loader.apply_diff_to(
+                                START_LOCATION,
+                                Diff::PlaceInside(player_eid,[10,10]),
+                                true,
+                            )
                         }
                     }
-                    outgoing_updates.push(
-                        MsgToClientSet::Only(
-                            MsgToClient::GiveControlling(
-                                inner_unwrap(server_data.cid_to_controlling.get(&d.cid)),
-                            ),
-                            d.cid,
-                        )
-                    );
+                    if let Some(&(eid,lid)) = server_data.cid_to_controlling.get(&d.cid) {
+                        outgoing_updates.push(
+                            MsgToClientSet::Only(
+                                MsgToClient::GiveControlling(eid,lid),
+                                d.cid,
+                            )
+                        );
+                    } else {
+                        panic!("WTFFFF");
+                    }
+
                 },
                 x => {
                     println!("SERVER CAN'T HANDLE {:?}", &x);
@@ -182,26 +181,3 @@ fn inner_unwrap<T : Copy>(o : Option<&T>) -> Option<T> {
         None
     }
 }
-
-// fn client_controls(cid : ClientID, eid : EntityID, player_controlling : &mut HashMap<ClientID,Vec<EntityID>>) -> bool {
-//     if let Some(controlling_list) = player_controlling.get(&cid) {
-//         controlling_list.contains(&eid)
-//     } else {
-//         false
-//     }
-// }
-
-// fn try_add_control(cid : ClientID,
-//                    eid : EntityID,
-//                    global_state : &mut GameState,
-//                    player_controlling : &mut HashMap<ClientID,Vec<EntityID>>) {
-//     if global_state.entity_exists(eid) {
-//         if let Some(controlling_list) = player_controlling.get_mut(&cid) {
-//             if ! controlling_list.contains(&eid) {
-//                 controlling_list.push(eid);
-//             }
-//             return;
-//         }
-//         player_controlling.insert(cid, vec![eid]);
-//     }
-// }
