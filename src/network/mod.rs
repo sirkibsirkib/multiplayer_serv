@@ -199,6 +199,7 @@ impl<T> ProtectedQueue<T> {
 }
 
 
+
 trait SingleStream {
     fn single_read<'a, S>(&mut self, buf : &'a mut [u8]) -> Result<S, io::Error>
         where S : Deserialize<'a>;
@@ -247,12 +248,20 @@ impl SingleStream for TcpStream {
     fn single_write_bytes(&mut self, bytes : &[u8]) -> Result<(), io::Error> {
         println!("STARTING single_write_bytes");
         let mut num : [u8;4] = [0;4];
-        println!("Writing {} bytes message {:?}", bytes.len(), String::from_utf8_lossy(&bytes));
+        println!("Writing {} bytes message [{}]", bytes.len(), bytes_to_hex(&bytes));
         (&mut num[..]).write_u32::<BigEndian>(bytes.len() as u32)?;
         self.write(&num)?;
         self.write(&bytes)?;
         Ok(())
     }
+}
+
+fn bytes_to_hex(bytes : &[u8]) -> String {
+    let mut s = String::new();
+    for b in bytes {
+        s.push_str(&format!("{:X}", b));
+    }
+    s
 }
 
 //everthing is keyed BY CID

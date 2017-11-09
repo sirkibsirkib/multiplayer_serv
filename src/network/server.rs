@@ -92,6 +92,7 @@ fn verify_connections(unverified : Arc<ProtectedQueue<TcpStream>>,
                                     streams.lock().expect("line 82 lock").insert(cid, stream);
                                 }
                                 let serv_in_clone = serv_in.clone();
+                                println!("SERVING THIS NEW CLIENT (INCOMING) {:?}", &cid);
                                 thread::spawn(move || {
                                     serve_incoming(cid, stream_clone, serv_in_clone);
                                 });
@@ -145,7 +146,7 @@ fn serve_outgoing(streams : Arc<Mutex<HashMap<ClientID,TcpStream>>>,
         {
             //lock streams
             let mut locked_streams = streams.lock().expect("lock streams serve outgoing");
-            println!("have {:?} active clients", locked_streams.len());
+            println!("//have {:?} active clients", locked_streams.len());
             if !streams_to_remove.is_empty() {
                 for cid in streams_to_remove.drain(..) {
                     println!("output is pruning stream {}", cid);

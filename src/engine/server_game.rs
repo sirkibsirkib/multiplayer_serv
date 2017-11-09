@@ -72,6 +72,8 @@ pub fn game_loop(serv_in : Arc<ProtectedQueue<MsgFromClient>>,
             sl.save_me(u, "user_base.lel").expect("couldn't save user base!");
             sl.save_me(&server_data, "./server_data.lel").expect("Couldn't save server_data");
             location_loader.save_all_locations();
+            location_loader.unload_overdue_backgrounds();
+            location_loader.print_status();
         }
 
         update_step(&serv_in, &serv_out, &mut location_loader, &userbase, &mut server_data);
@@ -122,8 +124,21 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                     }
                 }
                 MsgToServer::RequestLocationData(lid) => {
+                    location_loader.client_subscribe(d.cid, lid);
+                    if let Some(&(eid,old_lid)) = server_data.cid_to_controlling.get(&d.cid) {
+                        if lid != old_lid {
+                            location_loader.client_unsubscribe(d.cid, old_lid);
+                        }
+                    }
+                    let loc_prim = *location_loader.get_location_primitive(lid);
                     for (eid, pt) in location_loader.entity_iterator(lid) {
                         println!(">> informing client{:?} of eid {:?} {:?}", &d.cid, eid, pt);
+                        outgoing_updates.push(
+                            MsgToClientSet::Only(
+                                MsgToClient::GiveLocationPrimitive(lid, loc_prim),
+                                d.cid,
+                            )
+                        );
                         outgoing_updates.push(
                             MsgToClientSet::Only(
                                 MsgToClient::GiveEntityData(*eid,lid,*pt),

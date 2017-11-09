@@ -8,82 +8,11 @@ use std::collections::HashSet;
 use super::{ClientID,Diff};
 use super::super::network::messaging::MsgToClient;
 
+
 pub const START_LOCATION : LocationID = 0;
 
-
-
-struct LocationGuard {
-    loc : Location,
-    diffs : Vec<Diff>,
-}
-
-
-fn location_primitive_save_path(lid : LocationID) -> String {
-    format!("locations/loc_{}_prim.lel", lid)
-}
-
-fn location_diffs_save_path(lid : LocationID) -> String {
-    format!("locations/loc_{}_diffs.lel", lid)
-}
-
-impl LocationGuard {
-    fn entity_iterator<'a>(&'a self) -> Box<Iterator<Item=(&EntityID,&Point)> + 'a> {
-        self.loc.entity_iterator()
-    }
-
-    fn apply_diff(&mut self, diff : Diff) {
-        //APPLY the diff
-        self.loc.apply_diff(diff);
-        //STORE the diff
-        self.diffs.push(diff);
-    }
-
-    fn save_to(&self, sl : &SaverLoader, lid : LocationID) {
-        println!("saving loc lid:{:?} prim", lid);
-        sl.save_me(
-            & self.loc.get_location_primitive(),
-            & location_primitive_save_path(lid),
-        );
-
-        println!("saving loc lid:{:?} diffs", lid);
-        sl.save_me(
-            & self.diffs,
-            & location_diffs_save_path(lid),
-        );
-    }
-
-    fn load_from(sl : &SaverLoader, lid : LocationID) -> LocationGuard {
-        match sl.load_me(& location_primitive_save_path(lid)) {
-            Ok(prim) => { //found prim
-                let diffs : Vec<Diff> = sl.load_me(& location_diffs_save_path(lid))
-                    .expect("prim ok but diffs not??");
-                    //don't store diffs just yet. let loc_guard do that
-                    //TODO move server_game_state into its own module
-                let mut loc = Location::new(prim);
-                let mut loc_guard = LocationGuard {
-                    loc : loc,
-                    diffs : vec![],
-                };
-                //apply all diffs in trn
-                for diff in diffs {
-                    loc_guard.apply_diff(diff);
-                }
-                loc_guard
-            },
-            Err(_) => { // couldn't find savefile!
-                if lid == START_LOCATION { //ok must be a new game
-                    println!("Generating start location!");
-                    LocationGuard {
-                        loc : Location::start_location(),
-                        diffs : vec![],
-                    }
-                } else { //nope! just missing savefile
-                    panic!("MISSING SAVEFILE??");
-                }
-            },
-        }
-    }
-}
+mod loc_guard;
+use self::loc_guard::LocationGuard;
 
 pub struct LocationLoader {
     sl : SaverLoader,
@@ -100,6 +29,15 @@ pub struct LocationLoader {
 
 impl LocationLoader {
 
+    pub fn get_location_primitive(&mut self, lid : LocationID) -> &LocationPrimitive {
+        let mut loc_guard = if self.load_at_least_background(lid) {
+            self.background.get_mut(&lid).expect("must be in BG")
+        } else {
+            self.foreground.get_mut(&lid).expect("must be in FG, ye")
+        };
+        loc_guard.get_location_primitive()
+    }
+
     pub fn apply_diff_to(&mut self, lid : LocationID, diff : Diff, must_be_foreground : bool) {
         let mut loc_guard = if must_be_foreground {
             self.load_foreground(lid);
@@ -113,10 +51,6 @@ impl LocationLoader {
         };
         loc_guard.apply_diff(diff);
     }
-
-    // fn loader_find_locguard(lid : LocationID) -> &mut LocationGuard {
-    //
-    // }
 
     pub fn save_all_locations(&self) {
         for lid in self.foreground_iter() {
@@ -143,7 +77,45 @@ impl LocationLoader {
         }
     }
 
-    pub fn unforeground(&mut self, lid : LocationID) {
+    pub fn client_subscribe(&mut self, cid : ClientID, lid : LocationID) {
+        if let Some(set) = self.subscriptions.get_mut(&lid) {
+            set.insert(cid);
+            return;
+        }
+        let mut x = HashSet::new();
+        x.insert(cid);
+        self.subscriptions.insert(lid, x);
+        // 0->1 subs. gotta foreground!
+        self.load_foreground(lid);
+    }
+
+    pub fn client_unsubscribe(&mut self, cid : ClientID, lid : LocationID) {
+        let mut flag = false;
+        if let Some(ref mut set) = self.subscriptions.get_mut(&lid) {
+            set.remove(&cid);
+            if set.is_empty() {
+                flag = true;
+            }
+        } // else subs 0->0 who cares
+        if flag {
+            // 1->0 subs. gotta foreground!
+            self.unforeground(lid);
+        }
+    }
+
+    pub fn subscribers_exist_for(&self, lid : LocationID) -> bool {
+        self.subscriptions.contains_key(&lid)
+    }
+
+    pub fn is_subscribed(&self, cid : ClientID, lid : LocationID) -> bool {
+        if let Some(set) = self.subscriptions.get(&lid) {
+            set.contains(&cid)
+        } else {
+            false
+        }
+    }
+
+    fn unforeground(&mut self, lid : LocationID) {
         if let Some(x) = self.foreground.remove(&lid) {
             println!("Demoting LID {:?} to background", &lid);
             self.background.insert(lid, x);
@@ -162,7 +134,7 @@ impl LocationLoader {
     if unloaded, loads to background.
     returns TRUE if its in background, false if its in FOREGROUND
     */
-    pub fn load_at_least_background(&mut self, lid : LocationID) -> bool {
+    fn load_at_least_background(&mut self, lid : LocationID) -> bool {
         if self.foreground.contains_key(& lid) {
             false
         } else {
@@ -176,13 +148,14 @@ impl LocationLoader {
                     lid,
                     loc_guard,
                 );
+                self.last_backgrounded.insert(lid, Instant::now());
             }
             true
         }
     }
 
     //if not in foreground, loads to foreground
-    pub fn load_foreground(&mut self, lid : LocationID) {
+    fn load_foreground(&mut self, lid : LocationID) {
         if ! self.foreground.contains_key(& lid) {
             //it's not already loaded in foreground
             self.load_at_least_background(lid);
@@ -192,6 +165,18 @@ impl LocationLoader {
             self.foreground.insert(lid, loc);
             self.last_backgrounded.remove(&lid); //no longer backgrounded
         }
+    }
+
+    pub fn print_status(&self) {
+        println!("LocLoader status: {{", );
+        for lid in self.foreground_iter() {
+            println!("\tFG {:?}", lid);
+        }
+        println!("\t---");
+        for lid in self.background_iter() {
+            println!("\tBG {:?} time bg'd: {:?}", lid, &self.last_backgrounded.get(lid).unwrap().elapsed());
+        }
+        println!("}}");
     }
 
     pub fn unload_overdue_backgrounds(&mut self) {
@@ -213,11 +198,6 @@ impl LocationLoader {
         }
     }
 
-    // pub fn loaded(&self, lid : LocationID) -> bool {
-    //     self.foreground.contains_key(& lid)
-    //     || self.background.contains_key(& lid)
-    // }
-
     pub fn entity_iterator<'a>(&'a mut self, lid : LocationID) -> Box<Iterator<Item=(&EntityID,&Point)> + 'a> {
         let loc_guard = if self.load_at_least_background(lid) {
             self.background.get(&lid).expect("must be in BG")
@@ -232,14 +212,6 @@ impl LocationLoader {
     pub fn foreground_iter<'a>(&'a self) -> Box<Iterator<Item=&LocationID> + 'a> {
         Box::new(
             self.foreground.keys()
-        )
-    }
-
-
-
-    pub fn foreground_background_iter<'a>(&'a self) -> Box<Iterator<Item=&LocationID> + 'a> {
-        Box::new(
-            self.foreground_iter().chain(self.background_iter())
         )
     }
 

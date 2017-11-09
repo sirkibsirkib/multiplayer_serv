@@ -159,7 +159,19 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
                     }
                 },
                 GiveLocationPrimitive(lid, loc_prim) => {
-
+                    println!("OK got loc prim from serv");
+                    if let Some((c_eid, c_lid)) = my_data.controlling {
+                        if c_lid == lid {
+                            println!("... and I am expecting it");
+                            my_data.view = Some(View {
+                                h_rad_units : 50.0,
+                                v_rad_units : 40.0,
+                                eid : my_data.controlling.unwrap().0,
+                                location : Location::new(loc_prim),
+                                zoom : 1.0,
+                            });
+                        }
+                    }
                 },
                 GiveControlling(eid, lid) => {
                     let mut going_to_new_loc = false;
@@ -211,15 +223,16 @@ fn render_location(event : &Event, window : &mut PistonWindow, my_data : &mut My
             };
             let rad = 10.0;
             let screen_pt = v.translate_pt(*pt);
+            let el = [
+                screen_pt[0] - rad,
+                screen_pt[1] - rad,
+                rad*2.0,
+                rad*2.0
+            ];
             window.draw_2d(event, |context, graphics| {
                         ellipse(
                             col,
-                            [
-                                screen_pt[0] - rad,
-                                screen_pt[1] - rad,
-                                rad*2.0,
-                                rad*2.0
-                            ],
+                            el,
                             context.transform,
                             graphics
                       );
