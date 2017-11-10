@@ -148,16 +148,26 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
         for d in drained {
             use MsgToClient::*;
             match d {
-                GiveEntityData(eid, lid, pt) => {
+                ApplyLocationDiff(lid,diff) => {
                     if let Some(ref mut view) = my_data.view {
-                        view.location.apply_diff(Diff::PlaceInside(eid,pt));
+                        if let Some((c_eid, c_lid)) = my_data.controlling {
+                            if c_lid == lid {
+                                view.location.apply_diff(diff);
+                            }
+                        }
                     }
-                },
-                EntityMoveTo(eid,pt) => {
-                    if let Some(ref mut view) = my_data.view {
-                        view.location.apply_diff(Diff::MoveEntityTo(eid,pt));
-                    }
-                },
+                }
+                // GiveEntityData(eid, lid, pt) => {
+                //     if let Some(ref mut view) = my_data.view {
+                //         println!("client placing eid {:?}", eid);
+                //         view.location.apply_diff(Diff::PlaceInside(eid,pt));
+                //     }
+                // },
+                // EntityMoveTo(eid,pt) => {
+                //     if let Some(ref mut view) = my_data.view {
+                //         view.location.apply_diff(Diff::MoveEntityTo(eid,pt));
+                //     }
+                // },
                 GiveLocationPrimitive(lid, loc_prim) => {
                     println!("OK got loc prim from serv");
                     if let Some((c_eid, c_lid)) = my_data.controlling {
@@ -229,6 +239,7 @@ fn render_location(event : &Event, window : &mut PistonWindow, my_data : &mut My
                 rad*2.0,
                 rad*2.0
             ];
+            // println!("client sees eid {:?} ellipse {:?}", &eid, &el);
             window.draw_2d(event, |context, graphics| {
                         ellipse(
                             col,

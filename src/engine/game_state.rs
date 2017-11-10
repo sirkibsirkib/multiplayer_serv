@@ -7,22 +7,6 @@ pub const UPDATES_PER_SEC : u64 = 32;
 
 pub type Point = [i16;2];
 
-// #[derive(Clone, Debug, Copy, Serialize, Deserialize)]
-// pub struct Point {
-//     pub x : f64,
-//     pub y : f64,
-// }
-//
-// impl Point {
-//     pub fn new(x : f64, y : f64) -> Point {
-//         Point {
-//             x : x,
-//             y : y,
-//         }
-//     }
-//     // pub const NULL: Point = Point{x:0.0, y:0.0};
-// }
-
 #[derive(Serialize,Deserialize,Debug,Copy,Clone)]
 pub struct LocationPrimitive {
     pub cells_wide : u16,

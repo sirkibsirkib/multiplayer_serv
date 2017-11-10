@@ -10,7 +10,7 @@ use super::{ClientID,Diff,START_LOCATION};
 
 
 
-
+#[derive(Debug)]
 pub struct LocationGuard {
     loc : Location,
     diffs : Vec<Diff>,

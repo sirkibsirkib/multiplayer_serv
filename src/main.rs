@@ -18,7 +18,7 @@ mod setup;
 mod saving;
 mod identity;
 
-use identity::ClientID;
+use identity::{ClientID,ClientIDSet};
 use network::{ProtectedQueue,UserBase};
 use network::messaging::{MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer};
 use setup::RunMode;
@@ -29,7 +29,7 @@ use saving::SaverLoader;
 fn main() {
 
     let config = setup::configure();
-
+    
     /*
     See idea.png for an overview.
     The summary is: the players (or player) interact with the "clientside"/local game state / engine directly.

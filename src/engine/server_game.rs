@@ -113,40 +113,49 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                 MsgToServer::ControlMoveTo(lid,eid,pt) => {
                     if Some(&(eid,lid)) == server_data.cid_to_controlling.get(&d.cid) {
                         println!("You DO have permission to ctrl move that!");
-                        location_loader.apply_diff_to(lid, Diff::MoveEntityTo(eid,pt),false);
+                        let diff = Diff::MoveEntityTo(eid,pt);
+                        location_loader.apply_diff_to(lid, diff,false);
                         outgoing_updates.push(
-                            MsgToClientSet::All (
-                                MsgToClient::GiveEntityData(eid,lid,pt),
+                            MsgToClientSet::Subset (
+                                MsgToClient::ApplyLocationDiff(lid,diff),
+                                location_loader.get_subscriptions_for(lid),
                             )
                         );
                     } else {
                         println!("You don't have permission to ctrl move that!");
                     }
-                }
+                },
+                MsgToServer::ClientHasDisconnected => {
+                    println!("Client {:?} has disconnected!", &d.cid);
+                    if let Some(&(_,old_lid)) = server_data.cid_to_controlling.get(&d.cid) {
+                        location_loader.client_unsubscribe(d.cid, old_lid);
+                    }
+                },
                 MsgToServer::RequestLocationData(lid) => {
                     location_loader.client_subscribe(d.cid, lid);
-                    if let Some(&(eid,old_lid)) = server_data.cid_to_controlling.get(&d.cid) {
+                    if let Some(&(_,old_lid)) = server_data.cid_to_controlling.get(&d.cid) {
                         if lid != old_lid {
                             location_loader.client_unsubscribe(d.cid, old_lid);
                         }
                     }
                     let loc_prim = *location_loader.get_location_primitive(lid);
+                    outgoing_updates.push(
+                        MsgToClientSet::Only(
+                            MsgToClient::GiveLocationPrimitive(lid, loc_prim),
+                            d.cid,
+                        )
+                    );
                     for (eid, pt) in location_loader.entity_iterator(lid) {
                         println!(">> informing client{:?} of eid {:?} {:?}", &d.cid, eid, pt);
                         outgoing_updates.push(
                             MsgToClientSet::Only(
-                                MsgToClient::GiveLocationPrimitive(lid, loc_prim),
-                                d.cid,
-                            )
-                        );
-                        outgoing_updates.push(
-                            MsgToClientSet::Only(
-                                MsgToClient::GiveEntityData(*eid,lid,*pt),
+                                MsgToClient::ApplyLocationDiff(lid,Diff::PlaceInside(*eid,*pt)),
+                                // MsgToClient::GiveEntityData(*eid,lid,*pt),
                                 d.cid,
                             )
                         );
                     }
-                }
+                },
                 MsgToServer::RequestControlling => {
                     if server_data.cid_to_controlling.get(&d.cid) == None {
                         println!("cid_to_controlling");

@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std;
 use std::collections::HashMap;
 use std::net::{TcpStream,TcpListener};
 use super::{ProtectedQueue,MsgFromClient,MsgToClientSet,MsgToServer,MsgToClient,UserBase};
@@ -119,10 +120,11 @@ fn serve_incoming(c_id : ClientID,
         //blocks until something is there
         if let Ok(msg) = stream.single_read(&mut buf) {
             println!("server incoming read of {:?} from {:?}", &msg, &c_id);
-            serv_in.lock_push_notify(MsgFromClient{msg:msg, cid:c_id})
+            serv_in.lock_push_notify(MsgFromClient{msg:msg, cid:c_id});
         } else {
             println!("INCOMING SERVER DROPPING");
-            drop(stream);
+            serv_in.lock_push_notify(MsgFromClient{msg:MsgToServer::ClientHasDisconnected, cid:c_id});
+            let _ = stream.shutdown(std::net::Shutdown::Both);
             break;
         }
     }
@@ -150,6 +152,9 @@ fn serve_outgoing(streams : Arc<Mutex<HashMap<ClientID,TcpStream>>>,
             if !streams_to_remove.is_empty() {
                 for cid in streams_to_remove.drain(..) {
                     println!("output is pruning stream {}", cid);
+                    if let Some(stream) = locked_streams.get_mut(&cid) {
+                        let _ = stream.shutdown(std::net::Shutdown::Both);
+                    }
                     locked_streams.remove(&cid);
                     let mut locked_userbase = userbase.lock().unwrap();
                     locked_userbase.logout(cid);
@@ -171,6 +176,19 @@ fn serve_outgoing(streams : Arc<Mutex<HashMap<ClientID,TcpStream>>>,
                         for (cid, stream) in locked_streams.iter_mut() {
                             if let Err(_) = stream.single_write_bytes(&msg_bytes) {
                                 streams_to_remove.push(*cid);
+                            }
+                        }
+                    },
+
+                    MsgToClientSet::Subset(msg, cid_set) => {
+                        println!("server outgoing write of {:?} to CIDSet {:?}", &msg, &cid_set);
+                        let msg_bytes = bincode::serialize(&msg, bincode::Infinite).expect("hrgh");
+                        for cid in cid_set.iter_set_pos() {
+                            if let Some(stream) = locked_streams.get_mut(&cid){
+                                println!("YEEE {:?}", cid);
+                                if let Err(_) = stream.single_write_bytes(&msg_bytes) {
+                                    streams_to_remove.push(cid);
+                                }
                             }
                         }
                     },

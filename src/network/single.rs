@@ -37,7 +37,8 @@ pub fn coupler_enter(server_in : Arc<ProtectedQueue<MsgFromClient>>,
         let mut actually_send = vec![];
         for s in server_outgoing {
             match s {
-                MsgToClientSet::Only(msg, cid) => {if cid == cid {actually_send.push(msg)}},
+                MsgToClientSet::Only(msg, o_cid) => {if cid == o_cid {actually_send.push(msg)}},
+                MsgToClientSet::Subset(msg, cid_set) => {if cid_set.get(cid) {actually_send.push(msg)}},
                 MsgToClientSet::All(msg) => actually_send.push(msg),
             }
         }

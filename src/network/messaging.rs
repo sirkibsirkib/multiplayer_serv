@@ -1,6 +1,8 @@
 
+use std::collections::HashSet;
 use serde::{Serialize,Deserialize};
 use super::{ClientID,BoundedString,UserBaseError};
+use ::identity::ClientIDSet;
 use super::super::identity::{EntityID,LocationID};
 use super::super::engine::game_state::{Point,LocationPrimitive};
 
@@ -14,11 +16,9 @@ pub enum Diff {
 //PRIMITIVE
 #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub enum MsgToServer {
-    RequestControlOf(EntityID),
-    RelinquishControlof(EntityID),
     CreateEntity(EntityID,Point),
     ControlMoveTo(LocationID,EntityID,Point),
-    //username, password_hash
+    ClientHasDisconnected,
     ClientLogin(BoundedString,BoundedString),
     RequestEntityData(EntityID),
     RequestControlling,
@@ -28,13 +28,9 @@ pub enum MsgToServer {
 //PRIMITIVE
 #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub enum MsgToClient {
-    GiveEntityData(EntityID,LocationID,Point),
+    ApplyLocationDiff(LocationID,Diff),
     GiveControlling(EntityID,LocationID),
     GiveLocationPrimitive(LocationID,LocationPrimitive),
-    CreateEntity(EntityID,Point),
-    YouNowControl(EntityID),
-    YouNoLongerControl(EntityID),
-    EntityMoveTo(EntityID,Point),
     LoginSuccessful(ClientID),
     LoginFailure(UserBaseError),
 }
@@ -48,8 +44,10 @@ pub struct MsgFromClient {
 }
 
 //WRAPS MsgToClient
-#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
+// #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
+// #[derive(Copy,Clone,Debug)]
 pub enum MsgToClientSet {
     Only(MsgToClient, ClientID),
     All(MsgToClient),
+    Subset(MsgToClient,ClientIDSet),
 }

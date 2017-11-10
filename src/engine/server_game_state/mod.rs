@@ -6,6 +6,7 @@ use super::game_state::{Entity,Point,Location,LocationPrimitive};
 use super::super::identity::{EntityID,LocationID};
 use std::collections::HashSet;
 use super::{ClientID,Diff};
+use ::identity::ClientIDSet;
 use super::super::network::messaging::MsgToClient;
 
 
@@ -18,7 +19,7 @@ pub struct LocationLoader {
     sl : SaverLoader,
     background_retention : Duration,
 
-    subscriptions : HashMap<LocationID,HashSet<ClientID>>,
+    subscriptions : HashMap<LocationID,ClientIDSet>,
     background : HashMap<LocationID, LocationGuard>,
     foreground : HashMap<LocationID, LocationGuard>,
 
@@ -30,7 +31,7 @@ pub struct LocationLoader {
 impl LocationLoader {
 
     pub fn get_location_primitive(&mut self, lid : LocationID) -> &LocationPrimitive {
-        let mut loc_guard = if self.load_at_least_background(lid) {
+        let loc_guard = if self.load_at_least_background(lid) {
             self.background.get_mut(&lid).expect("must be in BG")
         } else {
             self.foreground.get_mut(&lid).expect("must be in FG, ye")
@@ -39,7 +40,7 @@ impl LocationLoader {
     }
 
     pub fn apply_diff_to(&mut self, lid : LocationID, diff : Diff, must_be_foreground : bool) {
-        let mut loc_guard = if must_be_foreground {
+        let loc_guard = if must_be_foreground {
             self.load_foreground(lid);
             self.foreground.get_mut(&lid).expect("must be in FG")
         } else {
@@ -79,11 +80,11 @@ impl LocationLoader {
 
     pub fn client_subscribe(&mut self, cid : ClientID, lid : LocationID) {
         if let Some(set) = self.subscriptions.get_mut(&lid) {
-            set.insert(cid);
+            set.set(cid,true);
             return;
         }
-        let mut x = HashSet::new();
-        x.insert(cid);
+        let mut x = ClientIDSet::new();
+        x.set(cid,true);
         self.subscriptions.insert(lid, x);
         // 0->1 subs. gotta foreground!
         self.load_foreground(lid);
@@ -92,7 +93,7 @@ impl LocationLoader {
     pub fn client_unsubscribe(&mut self, cid : ClientID, lid : LocationID) {
         let mut flag = false;
         if let Some(ref mut set) = self.subscriptions.get_mut(&lid) {
-            set.remove(&cid);
+            set.set(cid,false);
             if set.is_empty() {
                 flag = true;
             }
@@ -107,9 +108,17 @@ impl LocationLoader {
         self.subscriptions.contains_key(&lid)
     }
 
+    pub fn get_subscriptions_for(&self, lid : LocationID) -> ClientIDSet {
+        if let Some(x) = self.subscriptions.get(&lid) {
+            x.clone()
+        } else {
+            ClientIDSet::new()
+        }
+    }
+
     pub fn is_subscribed(&self, cid : ClientID, lid : LocationID) -> bool {
         if let Some(set) = self.subscriptions.get(&lid) {
-            set.contains(&cid)
+            set.get(cid)
         } else {
             false
         }
@@ -119,6 +128,7 @@ impl LocationLoader {
         if let Some(x) = self.foreground.remove(&lid) {
             println!("Demoting LID {:?} to background", &lid);
             self.background.insert(lid, x);
+            self.last_backgrounded.insert(lid, Instant::now());
         }
     }
 
@@ -170,7 +180,7 @@ impl LocationLoader {
     pub fn print_status(&self) {
         println!("LocLoader status: {{", );
         for lid in self.foreground_iter() {
-            println!("\tFG {:?}", lid);
+            println!("\tFG {:?} cid subs: {:?}", lid, &self.subscriptions.get(lid));
         }
         println!("\t---");
         for lid in self.background_iter() {
@@ -182,6 +192,7 @@ impl LocationLoader {
     pub fn unload_overdue_backgrounds(&mut self) {
         let mut remove_lids = vec![];
         for (lid, v) in self.background.iter_mut() {
+            println!("considering unloading {:?}", &lid);
             if self.last_backgrounded.get(lid).expect("no last backgrounded??").elapsed() > self.background_retention {
                 //save to file
                 v.save_to(&self.sl, *lid);
