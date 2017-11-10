@@ -14,6 +14,7 @@ pub struct LocationPrimitive {
     pub cell_width : f32, //meters
 }
 
+#[derive(Debug)]
 pub struct Location {
     location_primitive : LocationPrimitive,
     entities : BidirMap<EntityID, Point>,

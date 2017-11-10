@@ -8,8 +8,9 @@ use std::sync::{Arc,Mutex};
 use std::time;
 use std::collections::HashMap;
 
-use super::super::network::messaging::{MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer,Diff};
-use super::super::network::{ProtectedQueue,UserBase};
+use ::network::messaging::{MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer,Diff};
+use ::network::{ProtectedQueue};
+use ::network::userbase::UserBase;
 use super::ClientID;
 use std::thread;
 use super::SaverLoader;
@@ -127,6 +128,7 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                 },
                 MsgToServer::ClientHasDisconnected => {
                     println!("Client {:?} has disconnected!", &d.cid);
+                    user_base.lock().unwrap().logout(d.cid);
                     if let Some(&(_,old_lid)) = server_data.cid_to_controlling.get(&d.cid) {
                         location_loader.client_unsubscribe(d.cid, old_lid);
                     }

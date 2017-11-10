@@ -2,12 +2,10 @@ use std::time::{Instant,Duration};
 use std::io::Write;
 use std::collections::HashMap;
 use super::SaverLoader;
-use super::game_state::{Entity,Point,Location,LocationPrimitive};
+use super::game_state::{Point,Location,LocationPrimitive};
 use super::super::identity::{EntityID,LocationID};
-use std::collections::HashSet;
 use super::{ClientID,Diff};
 use ::identity::ClientIDSet;
-use super::super::network::messaging::MsgToClient;
 
 
 pub const START_LOCATION : LocationID = 0;

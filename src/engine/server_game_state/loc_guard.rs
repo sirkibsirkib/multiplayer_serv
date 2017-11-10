@@ -47,13 +47,13 @@ impl LocationGuard {
         sl.save_me(
             & self.loc.get_location_primitive(),
             & location_primitive_save_path(lid),
-        );
+        ).is_ok();
 
         println!("saving loc lid:{:?} diffs", lid);
         sl.save_me(
             & self.diffs,
             & location_diffs_save_path(lid),
-        );
+        ).is_ok();
     }
 
     pub fn load_from(sl : &SaverLoader, lid : LocationID) -> LocationGuard {
@@ -63,7 +63,7 @@ impl LocationGuard {
                     .expect("prim ok but diffs not??");
                     //don't store diffs just yet. let loc_guard do that
                     //TODO move server_game_state into its own module
-                let mut loc = Location::new(prim);
+                let loc = Location::new(prim);
                 let mut loc_guard = LocationGuard {
                     loc : loc,
                     diffs : vec![],

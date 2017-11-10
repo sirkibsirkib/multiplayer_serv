@@ -10,7 +10,7 @@ use std::path::{Path,PathBuf};
 use std::io::{ErrorKind,Error};
 use std::fs::create_dir;
 use std::fmt::Debug;
-use super::network::UserBase;
+use ::network::userbase::UserBase;
 
 #[derive(Clone)]
 pub struct SaverLoader {
