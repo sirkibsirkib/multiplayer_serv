@@ -4,6 +4,8 @@ use std::thread;
 #[macro_use]
 extern crate clap;
 
+extern crate rand;
+
 extern crate bidir_map;
 
 extern crate serde;

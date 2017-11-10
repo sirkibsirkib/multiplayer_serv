@@ -2,8 +2,9 @@ use std::collections::HashMap;
 use bidir_map::BidirMap;
 use super::Diff;
 
-use super::super::identity::*;
+use ::identity::*;
 pub const UPDATES_PER_SEC : u64 = 32;
+use super::procedural::NoiseField;
 
 pub type Point = [i16;2];
 
@@ -18,6 +19,7 @@ pub struct LocationPrimitive {
 pub struct Location {
     location_primitive : LocationPrimitive,
     entities : BidirMap<EntityID, Point>,
+    TODO noisefield here somehow
 }
 
 impl Location {

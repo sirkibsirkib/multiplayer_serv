@@ -19,6 +19,7 @@ const HEIGHT : f64 = 400.0;
 
 use super::game_state;
 use super::game_state::{Point,Entity};
+use super::procedural::NoiseMaster;
 
 // struct MyData2 {
 //     current_lid : LocationID,
@@ -80,6 +81,12 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
         controlling : None,
         cid : cid,
     };
+
+    let nm = NoiseMaster::new();
+    let nf0 = nm.generate_noise_field([1,2,3,4,4], [1.0,0.3,0.2,0.2,0.1], 1.0);
+    for i in 0..20 {
+        println!("''{:?}", nf0.sample([0,i]));
+    }
 
 
     let assets = find_folder::Search::ParentsThenKids(3, 3)
