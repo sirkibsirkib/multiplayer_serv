@@ -1,12 +1,16 @@
 mod view;
+mod asset_manager;
 
-use self::view::View;
+use self::asset_manager::AssetManager;
+use self::view::{View,ViewPerspective};
 
 use std::sync::Arc;
 use super::super::network::{ProtectedQueue};
 use super::ClientID;
 use super::super::network::messaging::{MsgToClient,MsgToServer};
-use super::super::identity::{LocationID,EntityID};
+use super::super::identity::{LocationID,EntityID,AssetID};
+use std::collections::HashMap;
+use std::time::{Instant,Duration};
 
 extern crate piston_window;
 use self::piston_window::*;
@@ -14,16 +18,24 @@ extern crate rand;
 // use self::rand::{SeedableRng, Rng, Isaac64Rng};
 // use self::rand::{SeedableRng, Rng, Isaac64Rng};
 use super::game_state::{Location};
+use super::entities::{EntityData,EntityDataSet};
 
 extern crate find_folder;
 
 const WIDTH : f64 = 500.0;
 const HEIGHT : f64 = 400.0;
 
+
+
+const E_DATA_SUPPRESS_DUR : Duration = Duration::from_secs(3); //TODO
+
 use super::game_state;
 use super::game_state::{Point};
 use super::procedural::NoiseMaster;
 
+struct InstantHolder {
+    ins : Instant,
+}
 
 struct MyData {
     view : Option<View>,
@@ -48,17 +60,21 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
     //     println!("''{:?}", nf0.sample([0,i]));
     // }
 
+    let mut asset_manager = AssetManager::new(&window.factory);
+    let mut entity_data = EntityDataSet::new();
 
-    let assets = find_folder::Search::ParentsThenKids(3, 3)
-        .for_folder("assets").unwrap();
-    let test_path = assets.join("test.png");
-    let rust_logo: G2dTexture = Texture::from_path(
-            &mut window.factory,
-            &test_path,
-            Flip::None,
-            &TextureSettings::new()
-        ).unwrap();
+    let mut entity_data_suppressed_until : InstantHolder = InstantHolder{ins : Instant::now()};
 
+
+    // let assets = find_folder::Search::ParentsThenKids(3, 3)
+    //     .for_folder("assets").unwrap();
+    // let test_path = assets.join("test.png");
+    // let rust_logo: G2dTexture = Texture::from_path(
+    //         &mut window.factory,
+    //         &test_path,
+    //         Flip::None,
+    //         &TextureSettings::new()
+    //     ).unwrap();
     // this is just a local vector to batch requests. populating this essentially populates client_out
     let mut outgoing_update_requests : Vec<MsgToServer> = vec![];
 
@@ -71,10 +87,18 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
 
         if let Some(_) = e.render_args() {
             window.draw_2d(&e, | _ , graphics| clear([0.0; 4], graphics));
-            render_location(&e, &mut window, &mut my_data, );
-            window.draw_2d(&e, |c, g| {
-                image(&rust_logo, c.transform, g);
-            });
+            render_location(
+                &e,
+                &mut window,
+                &mut my_data,
+                &mut outgoing_update_requests,
+                &mut asset_manager,
+                &entity_data,
+                &mut entity_data_suppressed_until,
+            );
+            // window.draw_2d(&e, |c, g| {
+            //     image(&rust_logo, c.transform, g);
+            // });
         }
         if let Some(z) = e.mouse_cursor_args() {
             mouse_at = Some(z);
@@ -99,7 +123,14 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
 
         if let Some(_) = e.update_args() {
             //SYNCHRONIZE!
-            synchronize(&client_in, &client_out, &mut outgoing_update_requests, &mut my_data, &nm);
+            synchronize(
+                &client_in,
+                &client_out,
+                &mut outgoing_update_requests,
+                &mut my_data,
+                &nm,
+                &mut entity_data,
+            );
         }
     }
 }
@@ -109,6 +140,7 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
                outgoing_update_requests : &mut Vec<MsgToServer>,
                my_data : &mut MyData,
                nm : &NoiseMaster,
+               entity_data : &mut EntityDataSet,
               ) {
     //comment
     if let Some(drained) = client_in.impatient_drain() {
@@ -116,6 +148,9 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
         for d in drained {
             use MsgToClient::*;
             match d {
+                GiveEntityData(eid,data) => {
+                    entity_data.insert(eid,data);
+                },
                 ApplyLocationDiff(lid,diff) => {
                     if let Some(ref mut view) = my_data.view {
                         if let Some((c_eid, c_lid)) = my_data.controlling {
@@ -130,19 +165,17 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
                     if let Some((c_eid, c_lid)) = my_data.controlling {
                         if c_lid == lid {
                             println!("... and I am expecting it");
-                            my_data.view = Some(View {
-                                h_rad_units : 50.0,
-                                v_rad_units : 40.0,
-                                eid : my_data.controlling.unwrap().0,
-                                location : Location::new(loc_prim, nm),
-                                zoom : 1.0,
-                            });
+                            my_data.view = Some(View::new(
+                                my_data.controlling.unwrap().0,
+                                Location::new(loc_prim, nm),
+                                ViewPerspective::DEFAULT_SURFACE,
+                            ));
                         }
                     }
                 },
                 GiveControlling(eid, lid) => {
                     let mut going_to_new_loc = false;
-                    if let Some((my_eid, my_lid)) = my_data.controlling {
+                    if let Some((_, my_lid)) = my_data.controlling {
                         // I am already controlling something!
                         if my_lid != lid {
                             // new location!
@@ -180,32 +213,65 @@ fn am_controlling(eid : EntityID, my_data : &MyData) -> bool {
     }
 }
 
-fn render_location(event : &Event, window : &mut PistonWindow, my_data : &mut MyData) {
+fn render_location<E>(event : &E,
+                   window : &mut PistonWindow,
+                   my_data : &mut MyData,
+                   outgoing_update_requests : &mut Vec<MsgToServer>,
+                   asset_manager : &mut AssetManager,
+                   entity_data : & EntityDataSet,
+                   entity_data_suppressed_until : &mut InstantHolder,
+               ) where E : GenericEvent {
     if let Some(ref v) = my_data.view {
+        let mut missing_eid_assets = vec![];
         for (eid, pt) in v.get_location().entity_iterator() {
-            let col = if am_controlling(*eid, &my_data) {
-                [0.0, 1.0, 0.0, 1.0] //green
+            if missing_eid_assets.contains(&eid) {
+                //already did this dance. waiting for it to arrive
+                continue;
+            }
+            if let Some(ent_data) = entity_data.get(*eid) {
+                let tex = asset_manager.get_texture_for(ent_data.aid);
+                // let aid = ;
+                let col = if am_controlling(*eid, &my_data) {
+                    [0.0, 1.0, 0.0, 1.0] //green
+                } else {
+                    [0.7, 0.7, 0.7, 1.0] //gray
+                };
+                let rad = 10.0;
+                let screen_pt = v.translate_pt(*pt);
+                window.draw_2d(event, |c, g| {
+                    image(tex, c.transform, g);
+                });
+                let el = [
+                    screen_pt[0] - rad,
+                    screen_pt[1] - rad,
+                    rad*2.0,
+                    rad*2.0
+                ];
+                // println!("client sees eid {:?} ellipse {:?}", &eid, &el);
+                window.draw_2d(event, |context, graphics| {
+                            ellipse(
+                                col,
+                                el,
+                                context.transform,
+                                graphics
+                          );
+                      }
+                );
             } else {
-                [0.7, 0.7, 0.7, 1.0] //gray
-            };
-            let rad = 10.0;
-            let screen_pt = v.translate_pt(*pt);
-            let el = [
-                screen_pt[0] - rad,
-                screen_pt[1] - rad,
-                rad*2.0,
-                rad*2.0
-            ];
-            // println!("client sees eid {:?} ellipse {:?}", &eid, &el);
-            window.draw_2d(event, |context, graphics| {
-                        ellipse(
-                            col,
-                            el,
-                            context.transform,
-                            graphics
-                      );
-                  }
-            );
+                missing_eid_assets.push(eid);
+                continue;
+            }
+        }
+        if ! missing_eid_assets.is_empty() {
+            let now = Instant::now();
+            if entity_data_suppressed_until.ins < now {
+                for eid in missing_eid_assets {
+                    outgoing_update_requests.push(
+                        MsgToServer::RequestEntityData(*eid)
+                    ); // request to populate asset manager
+                }
+                entity_data_suppressed_until.ins = now + E_DATA_SUPPRESS_DUR;
+            }
         }
     }
 }

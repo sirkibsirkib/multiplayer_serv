@@ -1,6 +1,7 @@
 pub mod game_state;
 mod client_game;
 mod server_game;
+pub mod entities;
 pub mod procedural;
 // pub mod server_game_state;
 

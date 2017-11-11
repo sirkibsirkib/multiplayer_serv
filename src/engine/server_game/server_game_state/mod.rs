@@ -1,13 +1,11 @@
 use std::time::{Instant,Duration};
-use std::io::Write;
 use std::collections::HashMap;
 use super::SaverLoader;
-use super::game_state::{Point,Location,LocationPrimitive};
-use super::super::identity::{EntityID,LocationID,SuperSeed};
+use super::game_state::{Location,LocationPrimitive};
+use ::identity::{LocationID,SuperSeed};
 use super::{ClientID,Diff};
 use ::identity::ClientIDSet;
-use super::procedural::{NoiseMaster,NoiseField};
-use bidir_map::BidirMap;
+use super::super::procedural::{NoiseMaster};
 
 
 pub const START_LOCATION_LID : LocationID = 0;

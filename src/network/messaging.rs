@@ -1,10 +1,10 @@
 
 // use std::collections::HashSet;
 // use serde::{Serialize,Deserialize};
-use super::{ClientID,BoundedString,UserBaseError};
-use ::identity::ClientIDSet;
-use super::super::identity::{EntityID,LocationID};
-use super::super::engine::game_state::{Point,LocationPrimitive};
+use super::{BoundedString,UserBaseError};
+use ::identity::{EntityID,LocationID,ClientID,ClientIDSet};
+use ::engine::game_state::{Point,LocationPrimitive};
+use ::engine::entities::{EntityData};
 
 //change applied to a SINGLE location
 #[derive(Clone,Copy,Serialize,Deserialize,Debug)]
@@ -28,6 +28,7 @@ pub enum MsgToServer {
 //PRIMITIVE
 #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub enum MsgToClient {
+    GiveEntityData(EntityID,EntityData),
     ApplyLocationDiff(LocationID,Diff),
     GiveControlling(EntityID,LocationID),
     GiveLocationPrimitive(LocationID,LocationPrimitive),

@@ -1,14 +1,36 @@
 use super::{EntityID,WIDTH,HEIGHT,Location,Point};
 
 pub struct View {
-    h_rad_units : f64,
-    v_rad_units : f64,
     eid : EntityID,
     location : Location,
+    vp : ViewPerspective,
+}
+
+pub struct ViewPerspective {
+    h_rad_units : f64,
+    v_rad_units : f64,
     zoom : f64,
 }
 
+impl ViewPerspective {
+    pub const DEFAULT_SURFACE : ViewPerspective = ViewPerspective {
+        h_rad_units : 50.0,
+        v_rad_units : 40.0,
+        zoom : 1.0,
+    };
+}
+
 impl View {
+
+    // suggest vp == ViewPerspective::default_surface()
+    pub fn new(eid : EntityID, location : Location, vp : ViewPerspective) -> View {
+        View {
+            eid : eid,
+            location : location,
+            vp : vp,
+        }
+    }
+
     pub fn translate_screenpt(&self, screen_pt : [f64;2]) -> Point {
         let prim = self.location.get_location_primitive();
         [
@@ -38,7 +60,7 @@ impl View {
 
     #[inline]
     pub fn get_location(&self) -> &Location {
-        &mut self.location
+        &self.location
     }
 
     #[inline]

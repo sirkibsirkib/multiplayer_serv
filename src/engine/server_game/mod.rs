@@ -2,6 +2,7 @@ mod server_game_state;
 
 use super::game_state;
 use super::game_state::{Point};
+use super::entities::{EntityData,EntityDataSet};
 use super::super::identity::{EntityID,LocationID};
 use self::server_game_state::{LocationLoader,START_LOCATION_LID};
 
@@ -12,7 +13,7 @@ use std::collections::HashMap;
 
 use ::network::messaging::{MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer,Diff};
 use ::network::{ProtectedQueue};
-use ::network::userbase::UserBase;
+use ::network::userbase::{UserBase};
 use super::ClientID;
 use std::thread;
 use super::SaverLoader;
@@ -37,6 +38,16 @@ pub fn game_loop(serv_in : Arc<ProtectedQueue<MsgFromClient>>,
                  sl : SaverLoader,
              ) {
     println!("Server game loop");
+    let mut entity_data_set = match sl.load_me("./entity_data_set.lel") {
+        Ok(x) => {
+            println!("Successfully loaded entity data");
+            x
+        },
+        Err(_) => {
+            println!("Failed to load entity_data_set. Made fresh");
+            EntityDataSet::new()
+        }
+    };
 
     let nm = NoiseMaster::new();
 
@@ -76,13 +87,14 @@ pub fn game_loop(serv_in : Arc<ProtectedQueue<MsgFromClient>>,
             println!("SAVING FOR TESTING PURPOSES");
             let u : &UserBase = &userbase.lock().unwrap();
             sl.save_me(u, "user_base.lel").expect("couldn't save user base!");
+            sl.save_me(&entity_data_set, "entity_data.lel").expect("couldn't save entity data!");
             sl.save_me(&server_data, "./server_data.lel").expect("Couldn't save server_data");
-            location_loader.save_all_locations();
             location_loader.unload_overdue_backgrounds();
+            location_loader.save_all_locations();
             location_loader.print_status();
         }
 
-        update_step(&serv_in, &serv_out, &mut location_loader, &userbase, &mut server_data, &nm);
+        update_step(&serv_in, &serv_out, &mut location_loader, &userbase, &mut server_data, &nm, &mut entity_data_set);
 
         let since_update = update_start.elapsed();
         if since_update < time_between_updates {
@@ -109,6 +121,7 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                user_base : &Arc<Mutex<UserBase>>,
                server_data : &mut ServerData,
                nm : &NoiseMaster,
+               entity_data_set : &mut EntityDataSet,
            ) {
     //comment
     let mut outgoing_updates : Vec<MsgToClientSet> = vec![];
@@ -133,6 +146,19 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                         }
                     } else {
                         println!("You don't have permission to ctrl move that!");
+                    }
+                },
+                MsgToServer::RequestEntityData(eid) => {
+                    if let Some(data) = entity_data_set.get(eid) {
+                        outgoing_updates.push(
+                            MsgToClientSet::Only(
+                                MsgToClient::GiveEntityData(eid, *data),
+                                d.cid,
+                            )
+                        );
+                    } else {
+                        println!("Client asking for nonexistant entity data for eid {:?}", eid);
+                        println!("entity data is actually {:?}", &entity_data_set);
                     }
                 },
                 MsgToServer::ClientHasDisconnected => {
@@ -174,6 +200,7 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                         if ! locked_ub.client_is_setup(d.cid) {
                             println!("CLIENT {:?} having first-time setup", d.cid);
                             let player_eid = server_data.use_next_eid();
+                            entity_data_set.insert(player_eid, EntityData::new(0));
                             locked_ub.set_client_setup_true(d.cid);
                             server_data.cid_to_controlling.insert(d.cid, (player_eid,START_LOCATION_LID));
                             let free_pt : Point =
@@ -199,7 +226,6 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                     } else {
                         panic!("WTFFFF");
                     }
-
                 },
                 x => {
                     println!("SERVER CAN'T HANDLE {:?}", &x);

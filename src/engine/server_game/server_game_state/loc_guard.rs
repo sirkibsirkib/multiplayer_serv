@@ -1,12 +1,8 @@
-use std::time::{Instant,Duration};
-use std::io::Write;
-use std::collections::HashMap;
 use super::SaverLoader;
-use super::super::game_state::{Entity,Point,Location,LocationPrimitive};
-use super::{EntityID,LocationID};
-use std::collections::HashSet;
-use super::{ClientID,Diff};
-use super::super::procedural::NoiseMaster;
+use super::super::game_state::{Location,LocationPrimitive};
+use ::identity::{LocationID};
+use super::{Diff};
+use super::super::super::procedural::NoiseMaster;
 // use super::super::network::messaging::MsgToClient;
 
 

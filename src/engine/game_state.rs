@@ -29,6 +29,10 @@ impl Location {
         &self.location_primitive
     }
 
+    pub fn point_is_free(&self, pt : Point) -> bool {
+        self.entities.get_by_second(&pt) == None
+    }
+
     pub fn new(location_primitive : LocationPrimitive, nm : &NoiseMaster) -> Location {
         Location {
             location_primitive : location_primitive,
@@ -104,18 +108,5 @@ impl Location {
         Box::new(
             self.entities.iter()
         )
-    }
-}
-
-#[derive(Debug)]
-pub struct Entity {
-    // p : Point,
-}
-
-impl Entity {
-    pub fn new() -> Entity {
-        Entity {
-            // p : p,
-        }
     }
 }

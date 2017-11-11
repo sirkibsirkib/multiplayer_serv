@@ -1,6 +1,8 @@
 use std::sync::{Arc,Mutex};
 use std::thread;
 
+extern crate gfx_device_gl;
+
 #[macro_use]
 extern crate clap;
 
