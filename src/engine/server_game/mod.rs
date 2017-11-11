@@ -1,7 +1,9 @@
+mod server_game_state;
+
 use super::game_state;
-use super::game_state::{Entity,Point};
+use super::game_state::{Point};
 use super::super::identity::{EntityID,LocationID};
-use super::server_game_state::{LocationLoader,START_LOCATION_LID};
+use self::server_game_state::{LocationLoader,START_LOCATION_LID};
 
 use std::time::Duration;
 use std::sync::{Arc,Mutex};
@@ -119,13 +121,16 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                     if Some(&(eid,lid)) == server_data.cid_to_controlling.get(&d.cid) {
                         println!("You DO have permission to ctrl move that!");
                         let diff = Diff::MoveEntityTo(eid,pt);
-                        location_loader.apply_diff_to(lid, diff,false, nm);
-                        outgoing_updates.push(
-                            MsgToClientSet::Subset (
-                                MsgToClient::ApplyLocationDiff(lid,diff),
-                                location_loader.get_subscriptions_for(lid),
-                            )
-                        );
+                        if location_loader.apply_diff_to(lid, diff,false, nm).is_ok() {
+                            outgoing_updates.push(
+                                MsgToClientSet::Subset (
+                                    MsgToClient::ApplyLocationDiff(lid,diff),
+                                    location_loader.get_subscriptions_for(lid),
+                                )
+                            );
+                        } else {
+                            println!("CLIENT MOVE INHIBITED");
+                        }
                     } else {
                         println!("You don't have permission to ctrl move that!");
                     }
@@ -144,14 +149,14 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                             location_loader.client_unsubscribe(d.cid, old_lid);
                         }
                     }
-                    let loc_prim = *location_loader.get_location_primitive(lid, nm);
+                    let loc_prim = *location_loader.borrow_location(lid, nm).get_location_primitive();
                     outgoing_updates.push(
                         MsgToClientSet::Only(
                             MsgToClient::GiveLocationPrimitive(lid, loc_prim),
                             d.cid,
                         )
                     );
-                    for (eid, pt) in location_loader.entity_iterator(lid, nm) {
+                    for (eid, pt) in location_loader.borrow_location(lid, nm).entity_iterator() {
                         println!(">> informing client{:?} of eid {:?} {:?}", &d.cid, eid, pt);
                         outgoing_updates.push(
                             MsgToClientSet::Only(
@@ -171,12 +176,17 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                             let player_eid = server_data.use_next_eid();
                             locked_ub.set_client_setup_true(d.cid);
                             server_data.cid_to_controlling.insert(d.cid, (player_eid,START_LOCATION_LID));
+                            let free_pt : Point =
+                                location_loader
+                                .borrow_location(START_LOCATION_LID, nm)
+                                .free_point()
+                                .expect("Oh no! start loc is full. cant spawn");
                             location_loader.apply_diff_to(
                                 START_LOCATION_LID,
-                                Diff::PlaceInside(player_eid,[10,10]),
+                                Diff::PlaceInside(player_eid,free_pt),
                                 true,
                                 nm,
-                            )
+                            ).expect("YOU SAID LOCATION WAS FREE");
                         }
                     }
                     if let Some(&(eid,lid)) = server_data.cid_to_controlling.get(&d.cid) {
@@ -203,12 +213,4 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
 
     // push all resultant game updates to clients
     serv_out.lock_pushall_notify(outgoing_updates.drain(..));
-}
-
-fn inner_unwrap<T : Copy>(o : Option<&T>) -> Option<T> {
-    if let Some(x) = o {
-        Some(*x)
-    } else {
-        None
-    }
 }

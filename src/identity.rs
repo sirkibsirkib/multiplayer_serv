@@ -1,6 +1,5 @@
-use serde::{Serialize,Deserialize};
+// use serde::{Serialize,Deserialize};
 use std::fmt::{Debug,Formatter};
-use std::io::Write;
 use std::collections::HashSet;
 
 use std;
@@ -59,15 +58,6 @@ impl ClientIDSet {
     }
 }
 
-// impl IntoIterator for ClientIDSet {
-//     type Item = ClientID;
-//     type IntoIter = ClientIDSetIntoIterator;
-//
-//     fn into_iter(self) -> ClientIDSetIntoIterator {
-//         ClientIDSetIntoIterator { bit_set: self, index: 0 }
-//     }
-// }
-
 pub struct ClientIDSetIntoIterator {
     pos_mode : bool,
     bit_set : ClientIDSet,
@@ -86,8 +76,6 @@ impl Iterator for ClientIDSetIntoIterator {
         None
     }
 }
-
-
 
 impl Debug for ClientIDSet {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {

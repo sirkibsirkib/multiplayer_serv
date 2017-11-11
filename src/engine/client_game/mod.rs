@@ -1,16 +1,19 @@
+mod view;
+
+use self::view::View;
+
 use std::sync::Arc;
 use super::super::network::{ProtectedQueue};
 use super::ClientID;
-use super::super::network::messaging::{MsgToClient,MsgToServer,Diff};
+use super::super::network::messaging::{MsgToClient,MsgToServer};
 use super::super::identity::{LocationID,EntityID};
 
 extern crate piston_window;
 use self::piston_window::*;
 extern crate rand;
-use self::rand::{SeedableRng, Rng, Isaac64Rng};
+// use self::rand::{SeedableRng, Rng, Isaac64Rng};
+// use self::rand::{SeedableRng, Rng, Isaac64Rng};
 use super::game_state::{Location};
-use std::collections::HashMap;
-
 
 extern crate find_folder;
 
@@ -18,52 +21,9 @@ const WIDTH : f64 = 500.0;
 const HEIGHT : f64 = 400.0;
 
 use super::game_state;
-use super::game_state::{Point,Entity};
+use super::game_state::{Point};
 use super::procedural::NoiseMaster;
 
-// struct MyData2 {
-//     current_lid : LocationID,
-//     subscriptions : HashMap<LocationID, Location>,
-// }
-
-// By default when zoom==1, View represents a size of 50m wide by 40m high
-
-struct View {
-    h_rad_units : f64,
-    v_rad_units : f64,
-    eid : EntityID,
-    location : Location,
-    zoom : f64,
-}
-
-impl View {
-    fn translate_screenpt(&self, screen_pt : [f64;2]) -> Point {
-        let prim = self.location.get_location_primitive();
-        [
-            (screen_pt[0]/WIDTH * prim.cells_wide as f64) as i16,
-            (screen_pt[1]/HEIGHT * prim.cells_high as f64) as i16,
-        ]
-        //[0,0] is topleft  [WIDTH,HEIGHT] is top right
-        //TODO complex shit
-        // let relative = [screen_pt[0]-0.5, screen_pt[1]-0.5];
-        // let e_at : Point = self.location.point_of(self.eid).expect("VIEW CANT FIND");
-        // let cell_width = self.location.get_cell_width();
-        // [
-        //     (relative[0] * self.h_rad_units/cell_width as f64) as i16 + e_at[0],
-        //     (relative[1] * self.v_rad_units/cell_width as f64) as i16 + e_at[1],
-        // ]
-    }
-
-    //TODO what happens when outside screen?
-    fn translate_pt(&self, pt : Point) -> [f64;2] {
-        //TODO make not stupid
-        let prim = self.location.get_location_primitive();
-        [
-            pt[0] as f64 / prim.cells_wide as f64 * WIDTH,
-            pt[1] as f64 / prim.cells_high as f64 * HEIGHT,
-        ]
-    }
-}
 
 struct MyData {
     view : Option<View>,
@@ -160,22 +120,11 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
                     if let Some(ref mut view) = my_data.view {
                         if let Some((c_eid, c_lid)) = my_data.controlling {
                             if c_lid == lid {
-                                view.location.apply_diff(diff);
+                                view.get_location_mut().apply_diff(diff);
                             }
                         }
                     }
                 }
-                // GiveEntityData(eid, lid, pt) => {
-                //     if let Some(ref mut view) = my_data.view {
-                //         println!("client placing eid {:?}", eid);
-                //         view.location.apply_diff(Diff::PlaceInside(eid,pt));
-                //     }
-                // },
-                // EntityMoveTo(eid,pt) => {
-                //     if let Some(ref mut view) = my_data.view {
-                //         view.location.apply_diff(Diff::MoveEntityTo(eid,pt));
-                //     }
-                // },
                 GiveLocationPrimitive(lid, loc_prim) => {
                     println!("OK got loc prim from serv");
                     if let Some((c_eid, c_lid)) = my_data.controlling {
@@ -233,7 +182,7 @@ fn am_controlling(eid : EntityID, my_data : &MyData) -> bool {
 
 fn render_location(event : &Event, window : &mut PistonWindow, my_data : &mut MyData) {
     if let Some(ref v) = my_data.view {
-        for (eid, pt) in v.location.entity_iterator() {
+        for (eid, pt) in v.get_location().entity_iterator() {
             let col = if am_controlling(*eid, &my_data) {
                 [0.0, 1.0, 0.0, 1.0] //green
             } else {

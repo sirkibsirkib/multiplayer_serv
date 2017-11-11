@@ -1,10 +1,7 @@
 extern crate noise;
-use std::mem;
-use ::rand;
 use super::game_state::Point;
 use ::identity::SuperSeed;
-
-use self::noise::{Seedable,NoiseModule,Perlin,Point2};
+// use self::noise::{Seedable};
 
 // perlins take up a lot of space. combine them for best results
 

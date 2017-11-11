@@ -27,20 +27,22 @@ fn location_diffs_save_path(lid : LocationID) -> String {
 }
 
 impl LocationGuard {
-    pub fn entity_iterator<'a>(&'a self) -> Box<Iterator<Item=(&EntityID,&Point)> + 'a> {
-        self.loc.entity_iterator()
-    }
-
     #[inline]
     pub fn get_location_primitive(&self) -> &LocationPrimitive {
         self.loc.get_location_primitive()
     }
 
-    pub fn apply_diff(&mut self, diff : Diff) {
-        //APPLY the diff
-        self.loc.apply_diff(diff);
-        //STORE the diff
-        self.diffs.push(diff);
+    pub fn borrow_location(&self) -> &Location {
+        &self.loc
+    }
+
+    pub fn apply_diff(&mut self, diff : Diff) -> Result<(),()> {
+        if self.loc.apply_diff(diff).is_ok() {
+            self.diffs.push(diff);
+            Ok(())
+        } else {
+            Err(())
+        }
     }
 
     pub fn save_to(&self, sl : &SaverLoader, lid : LocationID) {

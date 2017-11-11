@@ -3,8 +3,8 @@ use std::net::TcpListener;
 use std::error::Error;
 use std::thread;
 use std::net::TcpStream;
-use std::fs;
-use std::path::Path;
+// use std::fs;
+// use std::path::Path;
 use std;
 use super::saving::SaverLoader;
 use std::io::{ErrorKind};
@@ -14,7 +14,7 @@ use std::io;
 use self::byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 use super::identity::ClientID;
 
-use std::collections::{HashMap,HashSet};
+// use std::collections::{HashSet};
 use bincode;
 use serde::{Serialize,Deserialize};
 use std::io::Write;
@@ -28,7 +28,7 @@ pub mod userbase;
 
 use self::userbase::{UserBase,UserBaseError};
 
-use super::engine::game_state::{Point};
+// use super::engine::game_state::{Point};
 use self::messaging::{MsgFromClient,MsgToClientSet,MsgToClient,MsgToServer};
 
 pub fn get_user_string() -> String {

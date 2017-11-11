@@ -42,16 +42,25 @@ pub fn start_location(nm : &NoiseMaster) -> Location {
 
 impl LocationLoader {
 
-    pub fn get_location_primitive(&mut self, lid : LocationID, nm : &NoiseMaster) -> &LocationPrimitive {
+    // pub fn get_location_primitive(&mut self, lid : LocationID, nm : &NoiseMaster) -> &LocationPrimitive {
+    //     let loc_guard = if self.load_at_least_background(lid, nm) {
+    //         self.background.get_mut(&lid).expect("must be in BG")
+    //     } else {
+    //         self.foreground.get_mut(&lid).expect("must be in FG, ye")
+    //     };
+    //     loc_guard.get_location_primitive()
+    // }
+
+    pub fn borrow_location(&mut self, lid : LocationID, nm : &NoiseMaster) -> &Location {
         let loc_guard = if self.load_at_least_background(lid, nm) {
-            self.background.get_mut(&lid).expect("must be in BG")
+            self.background.get_mut(&lid).expect("borrow be in BG")
         } else {
-            self.foreground.get_mut(&lid).expect("must be in FG, ye")
+            self.foreground.get_mut(&lid).expect("borrow be in FG, ye")
         };
-        loc_guard.get_location_primitive()
+        loc_guard.borrow_location()
     }
 
-    pub fn apply_diff_to(&mut self, lid : LocationID, diff : Diff, must_be_foreground : bool, nm : &NoiseMaster) {
+    pub fn apply_diff_to(&mut self, lid : LocationID, diff : Diff, must_be_foreground : bool, nm : &NoiseMaster) -> Result<(),()> {
         let loc_guard = if must_be_foreground {
             self.load_foreground(lid, nm);
             self.foreground.get_mut(&lid).expect("must be in FG")
@@ -62,7 +71,7 @@ impl LocationLoader {
                 self.foreground.get_mut(&lid).expect("must be in FG, ye")
             }
         };
-        loc_guard.apply_diff(diff);
+        loc_guard.apply_diff(diff)
     }
 
     pub fn save_all_locations(&self) {
@@ -219,17 +228,6 @@ impl LocationLoader {
             //marking as "last simulated" around this time
             self.last_simulated.insert(lid, nowish);
         }
-    }
-
-    pub fn entity_iterator<'a>(&'a mut self, lid : LocationID, nm : &NoiseMaster) -> Box<Iterator<Item=(&EntityID,&Point)> + 'a> {
-        let loc_guard = if self.load_at_least_background(lid, nm) {
-            self.background.get(&lid).expect("must be in BG")
-        } else {
-            self.foreground.get(&lid).expect("must be in FG, ye")
-        };
-        Box::new(
-            loc_guard.entity_iterator()
-        )
     }
 
     pub fn foreground_iter<'a>(&'a self) -> Box<Iterator<Item=&LocationID> + 'a> {

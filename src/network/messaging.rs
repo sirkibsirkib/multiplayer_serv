@@ -1,6 +1,6 @@
 
-use std::collections::HashSet;
-use serde::{Serialize,Deserialize};
+// use std::collections::HashSet;
+// use serde::{Serialize,Deserialize};
 use super::{ClientID,BoundedString,UserBaseError};
 use ::identity::ClientIDSet;
 use super::super::identity::{EntityID,LocationID};

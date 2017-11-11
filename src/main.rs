@@ -20,7 +20,7 @@ mod setup;
 mod saving;
 mod identity;
 
-use identity::{ClientID,ClientIDSet};
+use identity::{ClientID};
 use network::{ProtectedQueue};
 use network::userbase::UserBase;
 use network::messaging::{MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer};

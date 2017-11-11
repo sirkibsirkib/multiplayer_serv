@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+// use std::collections::HashMap;
 use bidir_map::BidirMap;
 use super::Diff;
 
@@ -37,6 +37,26 @@ impl Location {
         }
     }
 
+    pub fn free_point(&self) -> Option<Point> {
+        for i in 0..self.location_primitive.cells_wide as i16 {
+            for j in 0..self.location_primitive.cells_high as i16 {
+                let p : Point = [i,j];
+                if self.entity_at(p) == None {
+                    return Some(p)
+                }
+            }
+        }
+        None
+    }
+
+    fn remove_eid(&mut self, eid : EntityID) -> Option<Point> {
+        if let Some((_,pt)) = self.entities.remove_by_first(&eid) {
+            Some(pt)
+        } else {
+            None
+        }
+    }
+
     pub fn point_of(&self, eid : EntityID) -> Option<Point> {
         if let Some(pt) = self.entities.get_by_first(&eid) {
             Some(*pt)
@@ -45,16 +65,37 @@ impl Location {
         }
     }
 
-    pub fn apply_diff(&mut self, diff : Diff) {
+    fn entity_at(&self, pt : Point) -> Option<EntityID> {
+        if let Some(x) = self.entities.get_by_second(&pt) {
+            Some(*x)
+        } else {
+            None
+        }
+    }
+
+    pub fn apply_diff(&mut self, diff : Diff) -> Result<(),()> {
         match diff {
             Diff::MoveEntityTo(eid,pt) => {
-                if ! self.entities.contains_first_key(&eid) {
-                    panic!("Moving entity I don't have!");
+                if let Some(old_pt) = self.remove_eid(eid) {
+                    if old_pt == pt {
+                        self.entities.insert(eid, pt);
+                        Err(())
+                    } else {
+                        self.entities.insert(eid, pt);
+                        Ok(())
+                    }
+                } else {
+                    Err(())
                 }
-                self.entities.insert(eid, pt);
             },
             Diff::PlaceInside(eid,pt) => {
-                self.entities.insert(eid, pt);
+                if self.entities.get_by_first(&eid) == None
+                &&  self.entities.get_by_second(&pt) == None {
+                    self.entities.insert(eid, pt);
+                    Ok(())
+                } else {
+                    Err(())
+                }
             }
         }
     }

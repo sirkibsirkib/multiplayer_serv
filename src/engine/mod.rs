@@ -2,7 +2,7 @@ pub mod game_state;
 mod client_game;
 mod server_game;
 pub mod procedural;
-pub mod server_game_state;
+// pub mod server_game_state;
 
 use std::sync::{Arc,Mutex};
 use network::messaging::{MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer,Diff};
