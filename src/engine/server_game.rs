@@ -1,7 +1,7 @@
 use super::game_state;
 use super::game_state::{Entity,Point};
 use super::super::identity::{EntityID,LocationID};
-use super::server_game_state::{LocationLoader,START_LOCATION};
+use super::server_game_state::{LocationLoader,START_LOCATION_LID};
 
 use std::time::Duration;
 use std::sync::{Arc,Mutex};
@@ -14,6 +14,7 @@ use ::network::userbase::UserBase;
 use super::ClientID;
 use std::thread;
 use super::SaverLoader;
+use super::procedural::NoiseMaster;
 
 #[derive(Serialize,Deserialize,Debug)]
 struct ServerData {
@@ -34,6 +35,8 @@ pub fn game_loop(serv_in : Arc<ProtectedQueue<MsgFromClient>>,
                  sl : SaverLoader,
              ) {
     println!("Server game loop");
+
+    let nm = NoiseMaster::new();
 
     let mut server_data : ServerData = match sl.load_me("./server_data.lel") {
         Ok(x) => {
@@ -77,7 +80,7 @@ pub fn game_loop(serv_in : Arc<ProtectedQueue<MsgFromClient>>,
             location_loader.print_status();
         }
 
-        update_step(&serv_in, &serv_out, &mut location_loader, &userbase, &mut server_data);
+        update_step(&serv_in, &serv_out, &mut location_loader, &userbase, &mut server_data, &nm);
 
         let since_update = update_start.elapsed();
         if since_update < time_between_updates {
@@ -103,6 +106,7 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                location_loader : &mut LocationLoader,
                user_base : &Arc<Mutex<UserBase>>,
                server_data : &mut ServerData,
+               nm : &NoiseMaster,
            ) {
     //comment
     let mut outgoing_updates : Vec<MsgToClientSet> = vec![];
@@ -115,7 +119,7 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                     if Some(&(eid,lid)) == server_data.cid_to_controlling.get(&d.cid) {
                         println!("You DO have permission to ctrl move that!");
                         let diff = Diff::MoveEntityTo(eid,pt);
-                        location_loader.apply_diff_to(lid, diff,false);
+                        location_loader.apply_diff_to(lid, diff,false, nm);
                         outgoing_updates.push(
                             MsgToClientSet::Subset (
                                 MsgToClient::ApplyLocationDiff(lid,diff),
@@ -134,20 +138,20 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                     }
                 },
                 MsgToServer::RequestLocationData(lid) => {
-                    location_loader.client_subscribe(d.cid, lid);
+                    location_loader.client_subscribe(d.cid, lid, nm);
                     if let Some(&(_,old_lid)) = server_data.cid_to_controlling.get(&d.cid) {
                         if lid != old_lid {
                             location_loader.client_unsubscribe(d.cid, old_lid);
                         }
                     }
-                    let loc_prim = *location_loader.get_location_primitive(lid);
+                    let loc_prim = *location_loader.get_location_primitive(lid, nm);
                     outgoing_updates.push(
                         MsgToClientSet::Only(
                             MsgToClient::GiveLocationPrimitive(lid, loc_prim),
                             d.cid,
                         )
                     );
-                    for (eid, pt) in location_loader.entity_iterator(lid) {
+                    for (eid, pt) in location_loader.entity_iterator(lid, nm) {
                         println!(">> informing client{:?} of eid {:?} {:?}", &d.cid, eid, pt);
                         outgoing_updates.push(
                             MsgToClientSet::Only(
@@ -166,11 +170,12 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                             println!("CLIENT {:?} having first-time setup", d.cid);
                             let player_eid = server_data.use_next_eid();
                             locked_ub.set_client_setup_true(d.cid);
-                            server_data.cid_to_controlling.insert(d.cid, (player_eid,START_LOCATION));
+                            server_data.cid_to_controlling.insert(d.cid, (player_eid,START_LOCATION_LID));
                             location_loader.apply_diff_to(
-                                START_LOCATION,
+                                START_LOCATION_LID,
                                 Diff::PlaceInside(player_eid,[10,10]),
                                 true,
+                                nm,
                             )
                         }
                     }

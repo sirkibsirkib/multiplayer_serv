@@ -83,10 +83,10 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
     };
 
     let nm = NoiseMaster::new();
-    let nf0 = nm.generate_noise_field([1,2,3,4,4], [1.0,0.3,0.2,0.2,0.1], 1.0);
-    for i in 0..20 {
-        println!("''{:?}", nf0.sample([0,i]));
-    }
+    // let nf0 = nm.generate_noise_field([1,2,3,4,4], [1.0,0.3,0.2,0.2,0.1], 1.0);
+    // for i in 0..20 {
+    //     println!("''{:?}", nf0.sample([0,i]));
+    // }
 
 
     let assets = find_folder::Search::ParentsThenKids(3, 3)
@@ -139,7 +139,7 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
 
         if let Some(_) = e.update_args() {
             //SYNCHRONIZE!
-            synchronize(&client_in, &client_out, &mut outgoing_update_requests, &mut my_data);
+            synchronize(&client_in, &client_out, &mut outgoing_update_requests, &mut my_data, &nm);
         }
     }
 }
@@ -148,6 +148,7 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
                client_out : &Arc<ProtectedQueue<MsgToServer>>,
                outgoing_update_requests : &mut Vec<MsgToServer>,
                my_data : &mut MyData,
+               nm : &NoiseMaster,
               ) {
     //comment
     if let Some(drained) = client_in.impatient_drain() {
@@ -184,7 +185,7 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
                                 h_rad_units : 50.0,
                                 v_rad_units : 40.0,
                                 eid : my_data.controlling.unwrap().0,
-                                location : Location::new(loc_prim),
+                                location : Location::new(loc_prim, nm),
                                 zoom : 1.0,
                             });
                         }

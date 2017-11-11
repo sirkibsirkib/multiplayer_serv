@@ -5,7 +5,8 @@ use super::SaverLoader;
 use super::super::game_state::{Entity,Point,Location,LocationPrimitive};
 use super::{EntityID,LocationID};
 use std::collections::HashSet;
-use super::{ClientID,Diff,START_LOCATION};
+use super::{ClientID,Diff};
+use super::super::procedural::NoiseMaster;
 // use super::super::network::messaging::MsgToClient;
 
 
@@ -56,14 +57,14 @@ impl LocationGuard {
         ).is_ok();
     }
 
-    pub fn load_from(sl : &SaverLoader, lid : LocationID) -> LocationGuard {
+    pub fn load_from(sl : &SaverLoader, lid : LocationID, nm : &NoiseMaster) -> LocationGuard {
         match sl.load_me(& location_primitive_save_path(lid)) {
             Ok(prim) => { //found prim
                 let diffs : Vec<Diff> = sl.load_me(& location_diffs_save_path(lid))
                     .expect("prim ok but diffs not??");
                     //don't store diffs just yet. let loc_guard do that
                     //TODO move server_game_state into its own module
-                let loc = Location::new(prim);
+                let loc = Location::new(prim, nm);
                 let mut loc_guard = LocationGuard {
                     loc : loc,
                     diffs : vec![],
@@ -75,10 +76,10 @@ impl LocationGuard {
                 loc_guard
             },
             Err(_) => { // couldn't find savefile!
-                if lid == START_LOCATION { //ok must be a new game
+                if lid == super::START_LOCATION_LID { //ok must be a new game
                     println!("Generating start location!");
                     LocationGuard {
-                        loc : Location::start_location(),
+                        loc : super::start_location(nm),
                         diffs : vec![],
                     }
                 } else { //nope! just missing savefile

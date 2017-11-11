@@ -4,7 +4,8 @@ use super::Diff;
 
 use ::identity::*;
 pub const UPDATES_PER_SEC : u64 = 32;
-use super::procedural::NoiseField;
+use super::procedural::{NoiseField,NoiseMaster};
+use ::identity::SuperSeed;
 
 pub type Point = [i16;2];
 
@@ -13,13 +14,14 @@ pub struct LocationPrimitive {
     pub cells_wide : u16,
     pub cells_high : u16,
     pub cell_width : f32, //meters
+    pub super_seed : SuperSeed,
 }
 
 #[derive(Debug)]
 pub struct Location {
     location_primitive : LocationPrimitive,
     entities : BidirMap<EntityID, Point>,
-    TODO noisefield here somehow
+    noise_field : NoiseField,
 }
 
 impl Location {
@@ -27,10 +29,11 @@ impl Location {
         &self.location_primitive
     }
 
-    pub fn new(location_primitive : LocationPrimitive) -> Location {
+    pub fn new(location_primitive : LocationPrimitive, nm : &NoiseMaster) -> Location {
         Location {
             location_primitive : location_primitive,
             entities : BidirMap::new(),
+            noise_field : NoiseField::from_super_seed(location_primitive.super_seed, nm),
         }
     }
 
@@ -39,17 +42,6 @@ impl Location {
             Some(*pt)
         } else {
             None
-        }
-    }
-
-    pub fn start_location() -> Location {
-        Location {
-            location_primitive : LocationPrimitive {
-                cells_wide : 50,
-                cells_high : 50,
-                cell_width : 1.0,
-            },
-            entities : BidirMap::new(),
         }
     }
 
