@@ -8,8 +8,7 @@ use std::sync::Arc;
 use super::super::network::{ProtectedQueue};
 use super::ClientID;
 use super::super::network::messaging::{MsgToClient,MsgToServer};
-use super::super::identity::{LocationID,EntityID,AssetID};
-use std::collections::HashMap;
+use super::super::identity::{LocationID,EntityID};
 use std::time::{Instant,Duration};
 
 extern crate piston_window;
@@ -17,8 +16,8 @@ use self::piston_window::*;
 extern crate rand;
 // use self::rand::{SeedableRng, Rng, Isaac64Rng};
 // use self::rand::{SeedableRng, Rng, Isaac64Rng};
-use super::game_state::{Location};
-use super::entities::{EntityData,EntityDataSet};
+use super::game_state::locations::{Location};
+use super::entities::{EntityDataSet};
 
 extern crate find_folder;
 
@@ -27,14 +26,14 @@ const HEIGHT : f64 = 400.0;
 
 
 
-const E_DATA_SUPPRESS_DUR : Duration = Duration::from_secs(3); //TODO
+
 
 use super::game_state;
 use super::game_state::{Point};
-use super::procedural::NoiseMaster;
 
-struct InstantHolder {
+struct Timer {
     ins : Instant,
+    setdur : Duration,
 }
 
 struct MyData {
@@ -54,16 +53,13 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
         cid : cid,
     };
 
-    let nm = NoiseMaster::new();
-    // let nf0 = nm.generate_noise_field([1,2,3,4,4], [1.0,0.3,0.2,0.2,0.1], 1.0);
-    // for i in 0..20 {
-    //     println!("''{:?}", nf0.sample([0,i]));
-    // }
-
     let mut asset_manager = AssetManager::new(&window.factory);
     let mut entity_data = EntityDataSet::new();
 
-    let mut entity_data_suppressed_until : InstantHolder = InstantHolder{ins : Instant::now()};
+    let mut entity_data_suppressed_until = Timer {
+        ins : Instant::now(),
+        setdur : Duration::from_millis(500),
+    };
 
 
     // let assets = find_folder::Search::ParentsThenKids(3, 3)
@@ -128,7 +124,6 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
                 &client_out,
                 &mut outgoing_update_requests,
                 &mut my_data,
-                &nm,
                 &mut entity_data,
             );
         }
@@ -139,7 +134,6 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
                client_out : &Arc<ProtectedQueue<MsgToServer>>,
                outgoing_update_requests : &mut Vec<MsgToServer>,
                my_data : &mut MyData,
-               nm : &NoiseMaster,
                entity_data : &mut EntityDataSet,
               ) {
     //comment
@@ -167,7 +161,7 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
                             println!("... and I am expecting it");
                             my_data.view = Some(View::new(
                                 my_data.controlling.unwrap().0,
-                                Location::new(loc_prim, nm),
+                                Location::new(loc_prim),
                                 ViewPerspective::DEFAULT_SURFACE,
                             ));
                         }
@@ -219,7 +213,7 @@ fn render_location<E>(event : &E,
                    outgoing_update_requests : &mut Vec<MsgToServer>,
                    asset_manager : &mut AssetManager,
                    entity_data : & EntityDataSet,
-                   entity_data_suppressed_until : &mut InstantHolder,
+                   entity_data_suppressed_until : &mut Timer,
                ) where E : GenericEvent {
     if let Some(ref v) = my_data.view {
         let mut missing_eid_assets = vec![];
@@ -270,7 +264,7 @@ fn render_location<E>(event : &E,
                         MsgToServer::RequestEntityData(*eid)
                     ); // request to populate asset manager
                 }
-                entity_data_suppressed_until.ins = now + E_DATA_SUPPRESS_DUR;
+                entity_data_suppressed_until.ins = now + entity_data_suppressed_until.setdur;
             }
         }
     }

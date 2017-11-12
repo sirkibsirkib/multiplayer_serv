@@ -3,7 +3,8 @@
 // use serde::{Serialize,Deserialize};
 use super::{BoundedString,UserBaseError};
 use ::identity::{EntityID,LocationID,ClientID,ClientIDSet};
-use ::engine::game_state::{Point,LocationPrimitive};
+use ::engine::game_state::{Point};
+use ::engine::game_state::locations::LocationPrimitive;
 use ::engine::entities::{EntityData};
 
 //change applied to a SINGLE location

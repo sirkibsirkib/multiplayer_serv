@@ -17,7 +17,6 @@ use ::network::userbase::{UserBase};
 use super::ClientID;
 use std::thread;
 use super::SaverLoader;
-use super::procedural::NoiseMaster;
 
 #[derive(Serialize,Deserialize,Debug)]
 struct ServerData {
@@ -48,8 +47,6 @@ pub fn game_loop(serv_in : Arc<ProtectedQueue<MsgFromClient>>,
             EntityDataSet::new()
         }
     };
-
-    let nm = NoiseMaster::new();
 
     let mut server_data : ServerData = match sl.load_me("./server_data.lel") {
         Ok(x) => {
@@ -87,14 +84,14 @@ pub fn game_loop(serv_in : Arc<ProtectedQueue<MsgFromClient>>,
             println!("SAVING FOR TESTING PURPOSES");
             let u : &UserBase = &userbase.lock().unwrap();
             sl.save_me(u, "user_base.lel").expect("couldn't save user base!");
-            sl.save_me(&entity_data_set, "entity_data.lel").expect("couldn't save entity data!");
+            sl.save_me(&entity_data_set, "./entity_data_set.lel").expect("couldn't save entity data!");
             sl.save_me(&server_data, "./server_data.lel").expect("Couldn't save server_data");
             location_loader.unload_overdue_backgrounds();
             location_loader.save_all_locations();
             location_loader.print_status();
         }
 
-        update_step(&serv_in, &serv_out, &mut location_loader, &userbase, &mut server_data, &nm, &mut entity_data_set);
+        update_step(&serv_in, &serv_out, &mut location_loader, &userbase, &mut server_data, &mut entity_data_set);
 
         let since_update = update_start.elapsed();
         if since_update < time_between_updates {
@@ -120,7 +117,6 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                location_loader : &mut LocationLoader,
                user_base : &Arc<Mutex<UserBase>>,
                server_data : &mut ServerData,
-               nm : &NoiseMaster,
                entity_data_set : &mut EntityDataSet,
            ) {
     //comment
@@ -134,7 +130,7 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                     if Some(&(eid,lid)) == server_data.cid_to_controlling.get(&d.cid) {
                         println!("You DO have permission to ctrl move that!");
                         let diff = Diff::MoveEntityTo(eid,pt);
-                        if location_loader.apply_diff_to(lid, diff,false, nm).is_ok() {
+                        if location_loader.apply_diff_to(lid, diff,false).is_ok() {
                             outgoing_updates.push(
                                 MsgToClientSet::Subset (
                                     MsgToClient::ApplyLocationDiff(lid,diff),
@@ -169,20 +165,20 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                     }
                 },
                 MsgToServer::RequestLocationData(lid) => {
-                    location_loader.client_subscribe(d.cid, lid, nm);
+                    location_loader.client_subscribe(d.cid, lid);
                     if let Some(&(_,old_lid)) = server_data.cid_to_controlling.get(&d.cid) {
                         if lid != old_lid {
                             location_loader.client_unsubscribe(d.cid, old_lid);
                         }
                     }
-                    let loc_prim = *location_loader.borrow_location(lid, nm).get_location_primitive();
+                    let loc_prim = *location_loader.borrow_location(lid).get_location_primitive();
                     outgoing_updates.push(
                         MsgToClientSet::Only(
                             MsgToClient::GiveLocationPrimitive(lid, loc_prim),
                             d.cid,
                         )
                     );
-                    for (eid, pt) in location_loader.borrow_location(lid, nm).entity_iterator() {
+                    for (eid, pt) in location_loader.borrow_location(lid).entity_iterator() {
                         println!(">> informing client{:?} of eid {:?} {:?}", &d.cid, eid, pt);
                         outgoing_updates.push(
                             MsgToClientSet::Only(
@@ -205,14 +201,13 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                             server_data.cid_to_controlling.insert(d.cid, (player_eid,START_LOCATION_LID));
                             let free_pt : Point =
                                 location_loader
-                                .borrow_location(START_LOCATION_LID, nm)
+                                .borrow_location(START_LOCATION_LID)
                                 .free_point()
                                 .expect("Oh no! start loc is full. cant spawn");
                             location_loader.apply_diff_to(
                                 START_LOCATION_LID,
                                 Diff::PlaceInside(player_eid,free_pt),
                                 true,
-                                nm,
                             ).expect("YOU SAID LOCATION WAS FREE");
                         }
                     }

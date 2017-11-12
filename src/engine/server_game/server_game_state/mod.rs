@@ -5,7 +5,6 @@ use super::game_state::{Location,LocationPrimitive};
 use ::identity::{LocationID,SuperSeed};
 use super::{ClientID,Diff};
 use ::identity::ClientIDSet;
-use super::super::procedural::{NoiseMaster};
 
 
 pub const START_LOCATION_LID : LocationID = 0;
@@ -27,20 +26,20 @@ pub struct LocationLoader {
 
 
 
-pub fn start_location(nm : &NoiseMaster) -> Location {
+pub fn start_location() -> Location {
     let start_loc_prim = LocationPrimitive {
         cells_wide : 50,
         cells_high : 50,
         cell_width : 1.0,
         super_seed : START_LOCATION_LID as SuperSeed,
     };
-    Location::new(start_loc_prim, nm)
+    Location::new(start_loc_prim)
 }
 
 
 impl LocationLoader {
 
-    // pub fn get_location_primitive(&mut self, lid : LocationID, nm : &NoiseMaster) -> &LocationPrimitive {
+    // pub fn get_location_primitive(&mut self, lid : LocationID) -> &LocationPrimitive {
     //     let loc_guard = if self.load_at_least_background(lid, nm) {
     //         self.background.get_mut(&lid).expect("must be in BG")
     //     } else {
@@ -49,8 +48,8 @@ impl LocationLoader {
     //     loc_guard.get_location_primitive()
     // }
 
-    pub fn borrow_location(&mut self, lid : LocationID, nm : &NoiseMaster) -> &Location {
-        let loc_guard = if self.load_at_least_background(lid, nm) {
+    pub fn borrow_location(&mut self, lid : LocationID) -> &Location {
+        let loc_guard = if self.load_at_least_background(lid) {
             self.background.get_mut(&lid).expect("borrow be in BG")
         } else {
             self.foreground.get_mut(&lid).expect("borrow be in FG, ye")
@@ -58,12 +57,12 @@ impl LocationLoader {
         loc_guard.borrow_location()
     }
 
-    pub fn apply_diff_to(&mut self, lid : LocationID, diff : Diff, must_be_foreground : bool, nm : &NoiseMaster) -> Result<(),()> {
+    pub fn apply_diff_to(&mut self, lid : LocationID, diff : Diff, must_be_foreground : bool) -> Result<(),()> {
         let loc_guard = if must_be_foreground {
-            self.load_foreground(lid, nm);
+            self.load_foreground(lid);
             self.foreground.get_mut(&lid).expect("must be in FG")
         } else {
-            if self.load_at_least_background(lid, nm) {
+            if self.load_at_least_background(lid) {
                 self.background.get_mut(&lid).expect("must be in BG")
             } else {
                 self.foreground.get_mut(&lid).expect("must be in FG, ye")
@@ -97,7 +96,7 @@ impl LocationLoader {
         }
     }
 
-    pub fn client_subscribe(&mut self, cid : ClientID, lid : LocationID, nm : &NoiseMaster) {
+    pub fn client_subscribe(&mut self, cid : ClientID, lid : LocationID) {
         if let Some(set) = self.subscriptions.get_mut(&lid) {
             set.set(cid,true);
             return;
@@ -106,7 +105,7 @@ impl LocationLoader {
         x.set(cid,true);
         self.subscriptions.insert(lid, x);
         // 0->1 subs. gotta foreground!
-        self.load_foreground(lid, nm);
+        self.load_foreground(lid);
     }
 
     pub fn client_unsubscribe(&mut self, cid : ClientID, lid : LocationID) {
@@ -163,13 +162,13 @@ impl LocationLoader {
     if unloaded, loads to background.
     returns TRUE if its in background, false if its in FOREGROUND
     */
-    fn load_at_least_background(&mut self, lid : LocationID, nm : &NoiseMaster) -> bool {
+    fn load_at_least_background(&mut self, lid : LocationID) -> bool {
         if self.foreground.contains_key(& lid) {
             false
         } else {
             if ! self.foreground.contains_key(& lid) {
                 println!("fresh file load for loc with LID {:?}", &lid);
-                let loc_guard = LocationGuard::load_from(&self.sl, lid, nm);
+                let loc_guard = LocationGuard::load_from(&self.sl, lid);
                 if let Some(dur) = self.consume_time_since_last_sim(lid) {
                     //TODO alter loc_guard to represent `dur` time passing
                 }
@@ -184,10 +183,10 @@ impl LocationLoader {
     }
 
     //if not in foreground, loads to foreground
-    fn load_foreground(&mut self, lid : LocationID, nm : &NoiseMaster) {
+    fn load_foreground(&mut self, lid : LocationID) {
         if ! self.foreground.contains_key(& lid) {
             //it's not already loaded in foreground
-            self.load_at_least_background(lid, nm);
+            self.load_at_least_background(lid);
             let loc = self.background.remove(& lid).expect("IT should be in background!");
             // upgrade background --> foreground
             println!("Promoting background LID {:?}", &lid);

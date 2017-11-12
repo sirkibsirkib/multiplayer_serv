@@ -2,7 +2,6 @@ use super::SaverLoader;
 use super::super::game_state::{Location,LocationPrimitive};
 use ::identity::{LocationID};
 use super::{Diff};
-use super::super::super::procedural::NoiseMaster;
 // use super::super::network::messaging::MsgToClient;
 
 
@@ -55,14 +54,14 @@ impl LocationGuard {
         ).is_ok();
     }
 
-    pub fn load_from(sl : &SaverLoader, lid : LocationID, nm : &NoiseMaster) -> LocationGuard {
+    pub fn load_from(sl : &SaverLoader, lid : LocationID) -> LocationGuard {
         match sl.load_me(& location_primitive_save_path(lid)) {
             Ok(prim) => { //found prim
                 let diffs : Vec<Diff> = sl.load_me(& location_diffs_save_path(lid))
                     .expect("prim ok but diffs not??");
                     //don't store diffs just yet. let loc_guard do that
                     //TODO move server_game_state into its own module
-                let loc = Location::new(prim, nm);
+                let loc = Location::new(prim);
                 let mut loc_guard = LocationGuard {
                     loc : loc,
                     diffs : vec![],
@@ -77,7 +76,7 @@ impl LocationGuard {
                 if lid == super::START_LOCATION_LID { //ok must be a new game
                     println!("Generating start location!");
                     LocationGuard {
-                        loc : super::start_location(nm),
+                        loc : super::start_location(),
                         diffs : vec![],
                     }
                 } else { //nope! just missing savefile

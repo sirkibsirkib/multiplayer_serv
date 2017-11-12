@@ -1,13 +1,12 @@
 // use std::collections::HashMap;
 use bidir_map::BidirMap;
-use super::Diff;
+use super::Point;
+use std::collections::{HashSet,HashMap};
+use ::network::messaging::Diff;
 
 use ::identity::*;
-pub const UPDATES_PER_SEC : u64 = 32;
-use super::procedural::{NoiseField,NoiseMaster};
-use ::identity::SuperSeed;
-
-pub type Point = [i16;2];
+use ::engine::procedural::{NoiseField};
+use ::identity::{SuperSeed,ObjectID};
 
 #[derive(Serialize,Deserialize,Debug,Copy,Clone)]
 pub struct LocationPrimitive {
@@ -21,7 +20,8 @@ pub struct LocationPrimitive {
 pub struct Location {
     location_primitive : LocationPrimitive,
     entities : BidirMap<EntityID, Point>,
-    noise_field : NoiseField,
+    objects : HashMap<ObjectID,HashSet<Point>>,
+    nfield_height : NoiseField,
 }
 
 impl Location {
@@ -33,11 +33,12 @@ impl Location {
         self.entities.get_by_second(&pt) == None
     }
 
-    pub fn new(location_primitive : LocationPrimitive, nm : &NoiseMaster) -> Location {
+    pub fn new(location_primitive : LocationPrimitive) -> Location {
         Location {
             location_primitive : location_primitive,
             entities : BidirMap::new(),
-            noise_field : NoiseField::from_super_seed(location_primitive.super_seed, nm),
+            objects : HashMap::new(), //TODO generate environmental objects
+            nfield_height : NoiseField::from_super_seed(location_primitive.super_seed),
         }
     }
 
@@ -102,6 +103,16 @@ impl Location {
                 }
             }
         }
+    }
+
+    pub fn oid_points(&self, oid : ObjectID) -> Option<&HashSet<Point>> {
+        self.objects.get(&oid)
+    }
+
+    pub fn oid_iterator<'a>(&'a self) -> Box<Iterator<Item=ObjectID> + 'a> {
+        Box::new(
+            self.objects.keys().map(|x| *x)
+        )
     }
 
     pub fn entity_iterator<'a>(&'a self) -> Box<Iterator<Item=(&EntityID,&Point)> + 'a> {
