@@ -10,7 +10,7 @@ extern crate lazy_static;
 extern crate clap;
 
 extern crate rand;
-
+// extern crate rustyline;
 extern crate bidir_map;
 
 extern crate serde;

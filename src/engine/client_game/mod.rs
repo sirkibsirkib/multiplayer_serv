@@ -1,30 +1,35 @@
+
+
+extern crate find_folder;
+extern crate rand;
+extern crate piston_window;
+extern crate sprite;
+
 mod view;
 mod asset_manager;
 
 use self::asset_manager::AssetManager;
 use self::view::{View,ViewPerspective};
 
-use std::sync::Arc;
+use std::rc::Rc;
+use std::sync::{Arc};
 use super::super::network::{ProtectedQueue};
 use super::ClientID;
 use super::super::network::messaging::{MsgToClient,MsgToServer};
 use super::super::identity::{LocationID,EntityID};
 use std::time::{Instant,Duration};
 
-extern crate piston_window;
-use self::piston_window::*;
-extern crate rand;
 // use self::rand::{SeedableRng, Rng, Isaac64Rng};
 // use self::rand::{SeedableRng, Rng, Isaac64Rng};
 use super::game_state::locations::{Location};
 use super::entities::{EntityDataSet};
 
-extern crate find_folder;
-
 const WIDTH : f64 = 500.0;
 const HEIGHT : f64 = 400.0;
 
 
+use self::piston_window::*;
+use self::sprite::Sprite;
 
 
 
@@ -223,7 +228,13 @@ fn render_location<E>(event : &E,
                 continue;
             }
             if let Some(ent_data) = entity_data.get(*eid) {
-                let tex = asset_manager.get_texture_for(ent_data.aid);
+                // let tex = asset_manager.get_texture_for(ent_data.aid);
+                // let tex = Rc::new(Texture::from_path(
+                //     &mut window.factory,
+                //     "./assets/asset_0.png",
+                //     Flip::None,
+                //     &TextureSettings::new()
+                // ).unwrap());
                 // let aid = ;
                 let col = if am_controlling(*eid, &my_data) {
                     [0.0, 1.0, 0.0, 1.0] //green
@@ -232,9 +243,11 @@ fn render_location<E>(event : &E,
                 };
                 let rad = 10.0;
                 let screen_pt = v.translate_pt(*pt);
-                window.draw_2d(event, |c, g| {
-                    image(tex, c.transform, g);
-                });
+                // let mut sprite = Sprite::from_texture(tex.clone());
+                // sprite.set_position(screen_pt[0], screen_pt[1]);
+                // window.draw_2d(event, |c, g| {
+                //     image(sprite, c.transform, g);
+                // });
                 let el = [
                     screen_pt[0] - rad,
                     screen_pt[1] - rad,

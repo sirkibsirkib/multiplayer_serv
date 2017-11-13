@@ -1,5 +1,5 @@
 use super::SaverLoader;
-use super::super::game_state::{Location,LocationPrimitive};
+use ::engine::game_state::locations::{Location,LocationPrimitive};
 use ::identity::{LocationID};
 use super::{Diff};
 // use super::super::network::messaging::MsgToClient;

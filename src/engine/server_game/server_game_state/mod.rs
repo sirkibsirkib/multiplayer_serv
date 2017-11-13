@@ -1,7 +1,7 @@
 use std::time::{Instant,Duration};
 use std::collections::HashMap;
 use super::SaverLoader;
-use super::game_state::{Location,LocationPrimitive};
+use ::engine::game_state::locations::{Location,LocationPrimitive};
 use ::identity::{LocationID,SuperSeed};
 use super::{ClientID,Diff};
 use ::identity::ClientIDSet;
