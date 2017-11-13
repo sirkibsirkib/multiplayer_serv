@@ -3,7 +3,7 @@
 extern crate find_folder;
 extern crate rand;
 extern crate piston_window;
-extern crate sprite;
+extern crate image;
 
 mod view;
 mod asset_manager;
@@ -11,7 +11,7 @@ mod asset_manager;
 use self::asset_manager::AssetManager;
 use self::view::{View,ViewPerspective};
 
-use std::rc::Rc;
+// use std::rc::Rc;
 use std::sync::{Arc};
 use super::super::network::{ProtectedQueue};
 use super::ClientID;
@@ -29,7 +29,7 @@ const HEIGHT : f64 = 400.0;
 
 
 use self::piston_window::*;
-use self::sprite::Sprite;
+// use self::sprite::Sprite;
 
 
 
@@ -228,7 +228,7 @@ fn render_location<E>(event : &E,
                 continue;
             }
             if let Some(ent_data) = entity_data.get(*eid) {
-                // let tex = asset_manager.get_texture_for(ent_data.aid);
+                let tex : &G2dTexture = asset_manager.get_texture_for(ent_data.aid);
                 // let tex = Rc::new(Texture::from_path(
                 //     &mut window.factory,
                 //     "./assets/asset_0.png",
@@ -248,6 +248,9 @@ fn render_location<E>(event : &E,
                 // window.draw_2d(event, |c, g| {
                 //     image(sprite, c.transform, g);
                 // });
+                window.draw_2d(event, |c, g| {
+                    image(tex, c.transform, g);
+                });
                 let el = [
                     screen_pt[0] - rad,
                     screen_pt[1] - rad,
