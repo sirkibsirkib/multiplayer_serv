@@ -24,6 +24,21 @@ pub struct Location {
     nfield_height : NoiseField,
 }
 
+fn generate_objects(nf : &NoiseField, loc_prim : &LocationPrimitive) -> HashMap<ObjectID,HashSet<Point>> {
+    let mut v = HashMap::new();
+    let mut zero_set = HashSet::new();
+    for i in 0..loc_prim.cells_wide {
+        for j in 0..loc_prim.cells_high {
+            let pt = [i as i16, j as i16];
+            if nf.sample(pt) > 0.3 {
+                zero_set.insert(pt);
+            }
+        }
+    }
+    v.insert(0, zero_set);
+    v
+}
+
 impl Location {
     pub fn get_location_primitive(&self) -> &LocationPrimitive {
         &self.location_primitive
@@ -34,11 +49,13 @@ impl Location {
     }
 
     pub fn new(location_primitive : LocationPrimitive) -> Location {
+        let nf = NoiseField::from_super_seed(location_primitive.super_seed);
+        let objects = generate_objects(&nf, &location_primitive);
         Location {
             location_primitive : location_primitive,
             entities : BidirMap::new(),
-            objects : HashMap::new(), //TODO generate environmental objects
-            nfield_height : NoiseField::from_super_seed(location_primitive.super_seed),
+            objects : objects,
+            nfield_height : nf,
         }
     }
 
@@ -112,6 +129,12 @@ impl Location {
     pub fn oid_iterator<'a>(&'a self) -> Box<Iterator<Item=ObjectID> + 'a> {
         Box::new(
             self.objects.keys().map(|x| *x)
+        )
+    }
+
+    pub fn object_iterator<'a>(&'a self) -> Box<Iterator<Item=(&ObjectID,&HashSet<Point>)> + 'a> {
+        Box::new(
+            self.objects.iter()
         )
     }
 

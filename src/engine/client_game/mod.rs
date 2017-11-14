@@ -47,6 +47,8 @@ struct MyData {
     cid : ClientID,
 }
 
+type ScreenPoint = [f64;2];
+
 
 pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
                  client_out : Arc<ProtectedQueue<MsgToServer>>,
@@ -65,18 +67,6 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
         ins : Instant::now(),
         setdur : Duration::from_millis(500),
     };
-
-
-    // let assets = find_folder::Search::ParentsThenKids(3, 3)
-    //     .for_folder("assets").unwrap();
-    // let test_path = assets.join("test.png");
-    // let rust_logo: G2dTexture = Texture::from_path(
-    //         &mut window.factory,
-    //         &test_path,
-    //         Flip::None,
-    //         &TextureSettings::new()
-    //     ).unwrap();
-    // this is just a local vector to batch requests. populating this essentially populates client_out
     let mut outgoing_update_requests : Vec<MsgToServer> = vec![];
 
     outgoing_update_requests.push(
@@ -97,9 +87,6 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
                 &entity_data,
                 &mut entity_data_suppressed_until,
             );
-            // window.draw_2d(&e, |c, g| {
-            //     image(&rust_logo, c.transform, g);
-            // });
         }
         if let Some(z) = e.mouse_cursor_args() {
             mouse_at = Some(z);
@@ -220,8 +207,16 @@ fn render_location<E>(event : &E,
                    entity_data : & EntityDataSet,
                    entity_data_suppressed_until : &mut Timer,
                ) where E : GenericEvent {
+
     if let Some(ref v) = my_data.view {
         let mut missing_eid_assets = vec![];
+        for (oid, pt_set) in v.get_location().object_iterator() {
+            let o_col = [0.2, 0.2, 0.2, 1.0];
+            // let tex : &G2dTexture = asset_manager.get_texture_for(ent_data.aid); // NONSESNSE
+            for pt in pt_set.iter() {
+                render_something_at(*pt, v, event, window, o_col);
+            }
+        }
         for (eid, pt) in v.get_location().entity_iterator() {
             if missing_eid_assets.contains(&eid) {
                 //already did this dance. waiting for it to arrive
@@ -229,44 +224,12 @@ fn render_location<E>(event : &E,
             }
             if let Some(ent_data) = entity_data.get(*eid) {
                 let tex : &G2dTexture = asset_manager.get_texture_for(ent_data.aid);
-                // let tex = Rc::new(Texture::from_path(
-                //     &mut window.factory,
-                //     "./assets/asset_0.png",
-                //     Flip::None,
-                //     &TextureSettings::new()
-                // ).unwrap());
-                // let aid = ;
                 let col = if am_controlling(*eid, &my_data) {
                     [0.0, 1.0, 0.0, 1.0] //green
                 } else {
                     [0.7, 0.7, 0.7, 1.0] //gray
                 };
-                let rad = 10.0;
-                let screen_pt = v.translate_pt(*pt);
-                // let mut sprite = Sprite::from_texture(tex.clone());
-                // sprite.set_position(screen_pt[0], screen_pt[1]);
-                // window.draw_2d(event, |c, g| {
-                //     image(sprite, c.transform, g);
-                // });
-                window.draw_2d(event, |c, g| {
-                    image(tex, c.transform, g);
-                });
-                let el = [
-                    screen_pt[0] - rad,
-                    screen_pt[1] - rad,
-                    rad*2.0,
-                    rad*2.0
-                ];
-                // println!("client sees eid {:?} ellipse {:?}", &eid, &el);
-                window.draw_2d(event, |context, graphics| {
-                            ellipse(
-                                col,
-                                el,
-                                context.transform,
-                                graphics
-                          );
-                      }
-                );
+                render_something_at(*pt, v, event, window, col);
             } else {
                 missing_eid_assets.push(eid);
                 continue;
@@ -286,6 +249,38 @@ fn render_location<E>(event : &E,
     }
 }
 
+fn is_on_screen(sp : &ScreenPoint) -> bool {
+    sp[0] >= 0.0 && sp[0] < WIDTH
+    && sp[1] >= 0.0 && sp[1] < HEIGHT
+}
+
+const DRAW_RAD : f64 = 3.0;
+
+fn render_something_at<E>(pt : Point, v : &View, event : &E, window : &mut PistonWindow, col : [f32 ; 4])
+where E : GenericEvent {
+    let screen_pt = v.translate_pt(pt);
+    if is_on_screen(&screen_pt) {
+        let el = [
+            screen_pt[0] - DRAW_RAD,
+            screen_pt[1] - DRAW_RAD,
+            DRAW_RAD*2.0,
+            DRAW_RAD*2.0
+        ];
+        // println!("client sees eid {:?} ellipse {:?}", &eid, &el);
+        window.draw_2d(event, |context, graphics| {
+                    ellipse(
+                        col,
+                        el,
+                        context.transform,
+                        graphics
+                  );
+              }
+        );
+    }
+}
+
+
+
 
 fn init_window() -> PistonWindow {
     let mut window: PistonWindow = WindowSettings::new("Multiplayer", ((WIDTH) as u32, (HEIGHT) as u32))
@@ -295,6 +290,7 @@ fn init_window() -> PistonWindow {
 
     let event_settings = EventSettings {
         max_fps: 32,
+            // max_fps: 32,
         ups: game_state::UPDATES_PER_SEC,
         ups_reset: 2,
         swap_buffers: true,

@@ -1,4 +1,4 @@
-use super::{EntityID,WIDTH,HEIGHT,Location,Point};
+use super::{EntityID,WIDTH,HEIGHT,Location,Point,ScreenPoint};
 
 pub struct View {
     eid : EntityID,
@@ -31,7 +31,7 @@ impl View {
         }
     }
 
-    pub fn translate_screenpt(&self, screen_pt : [f64;2]) -> Point {
+    pub fn translate_screenpt(&self, screen_pt : ScreenPoint) -> Point {
         let prim = self.location.get_location_primitive();
         [
             (screen_pt[0]/WIDTH * prim.cells_wide as f64) as i16,
@@ -49,7 +49,7 @@ impl View {
     }
 
     //TODO what happens when outside screen?
-    pub fn translate_pt(&self, pt : Point) -> [f64;2] {
+    pub fn translate_pt(&self, pt : Point) -> ScreenPoint {
         //TODO make not stupid
         let prim = self.location.get_location_primitive();
         [

@@ -5,8 +5,9 @@ use ::identity::SuperSeed;
 
 use ::rand::{SeedableRng,Rng,Isaac64Rng};
 
+const NUM_PERLINS : usize = 5;
+
 lazy_static! {
-    static ref NUM_PERLINS : usize = 5;
     static ref PERLINS : [Perlin ; 5] = {
         let p1 = Perlin::new();
         [
@@ -50,9 +51,9 @@ impl NoiseField {
         }{}
         NoiseField {
             perlins : [
-                &PERLINS[rng.next_u32() as usize],
-                &PERLINS[rng.next_u32() as usize],
-                &PERLINS[rng.next_u32() as usize],
+                &PERLINS[(rng.next_u32() as usize) % NUM_PERLINS],
+                &PERLINS[(rng.next_u32() as usize) % NUM_PERLINS],
+                &PERLINS[(rng.next_u32() as usize) % NUM_PERLINS],
             ],
             mults : mults,
             mults_sum : mults_sum,
