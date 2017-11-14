@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use ::identity::AssetID;
+use ::identity::{AssetID,EntityID,ObjectID};
 use super::piston_window::{G2dTexture,Texture,TextureSettings,Flip};
 use super::piston_window::ImageSize;
 use ::gfx_device_gl::Factory;

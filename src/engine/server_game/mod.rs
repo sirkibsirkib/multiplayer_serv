@@ -11,6 +11,7 @@ use std::sync::{Arc,Mutex};
 use std::time;
 use std::collections::HashMap;
 
+use super::objects::{ObjectDataSet,ObjectData};
 use ::network::messaging::{MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer,Diff};
 use ::network::{ProtectedQueue};
 use ::network::userbase::{UserBase};
@@ -37,7 +38,7 @@ pub fn game_loop(serv_in : Arc<ProtectedQueue<MsgFromClient>>,
                  sl : SaverLoader,
              ) {
     println!("Server game loop");
-    let mut entity_data_set = match sl.load_me("./entity_data_set.lel") {
+    let mut entity_data_set : EntityDataSet = match sl.load_me("./entity_data_set.lel") {
         Ok(x) => {
             println!("Successfully loaded entity data");
             x
@@ -45,6 +46,20 @@ pub fn game_loop(serv_in : Arc<ProtectedQueue<MsgFromClient>>,
         Err(_) => {
             println!("Failed to load entity_data_set. Made fresh");
             EntityDataSet::new()
+        }
+    };
+
+
+    let mut object_data_set : ObjectDataSet = match sl.load_me("./object_data_set.lel") {
+        Ok(x) => {
+            println!("Successfully loaded object data");
+            x
+        },
+        Err(_) => {
+            println!("Failed to load object_data_set. Made fresh");
+            let mut o = ObjectDataSet::new();
+            o.insert(0, ObjectData::new(0));
+            o
         }
     };
 
@@ -85,13 +100,22 @@ pub fn game_loop(serv_in : Arc<ProtectedQueue<MsgFromClient>>,
             let u : &UserBase = &userbase.lock().unwrap();
             sl.save_me(u, "user_base.lel").expect("couldn't save user base!");
             sl.save_me(&entity_data_set, "./entity_data_set.lel").expect("couldn't save entity data!");
+            sl.save_me(&object_data_set, "./object_data_set.lel").expect("couldn't save object data!");
             sl.save_me(&server_data, "./server_data.lel").expect("Couldn't save server_data");
             location_loader.unload_overdue_backgrounds();
             location_loader.save_all_locations();
             location_loader.print_status();
         }
 
-        update_step(&serv_in, &serv_out, &mut location_loader, &userbase, &mut server_data, &mut entity_data_set);
+        update_step(
+            &serv_in,
+            &serv_out,
+            &mut location_loader,
+            &userbase,
+            &mut server_data,
+            &mut entity_data_set,
+            &mut object_data_set
+        );
 
         let since_update = update_start.elapsed();
         if since_update < time_between_updates {
@@ -118,6 +142,7 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                user_base : &Arc<Mutex<UserBase>>,
                server_data : &mut ServerData,
                entity_data_set : &mut EntityDataSet,
+               object_data_set : &mut ObjectDataSet,
            ) {
     //comment
     let mut outgoing_updates : Vec<MsgToClientSet> = vec![];
@@ -128,7 +153,7 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
             match d.msg {
                 MsgToServer::ControlMoveTo(lid,eid,pt) => {
                     if Some(&(eid,lid)) == server_data.cid_to_controlling.get(&d.cid) {
-                        println!("You DO have permission to ctrl move that!");
+                        println!("Ok you may move that!");
                         let diff = Diff::MoveEntityTo(eid,pt);
                         if location_loader.apply_diff_to(lid, diff,false).is_ok() {
                             outgoing_updates.push(
@@ -142,6 +167,19 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                         }
                     } else {
                         println!("You don't have permission to ctrl move that!");
+                    }
+                },
+                MsgToServer::RequestObjectData(oid) => {
+                    if let Some(data) = object_data_set.get(oid) {
+                        outgoing_updates.push(
+                            MsgToClientSet::Only(
+                                MsgToClient::GiveObjectData(oid, *data),
+                                d.cid,
+                            )
+                        );
+                    } else {
+                        println!("Client asking for nonexistant object data for oid {:?}", oid);
+                        println!("object data is actually {:?}", &object_data_set);
                     }
                 },
                 MsgToServer::RequestEntityData(eid) => {
@@ -196,7 +234,7 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                         if ! locked_ub.client_is_setup(d.cid) {
                             println!("CLIENT {:?} having first-time setup", d.cid);
                             let player_eid = server_data.use_next_eid();
-                            entity_data_set.insert(player_eid, EntityData::new(0));
+                            entity_data_set.insert(player_eid, EntityData::new(1));
                             locked_ub.set_client_setup_true(d.cid);
                             server_data.cid_to_controlling.insert(d.cid, (player_eid,START_LOCATION_LID));
                             let free_pt : Point =

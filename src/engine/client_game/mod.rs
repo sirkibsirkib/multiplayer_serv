@@ -16,13 +16,14 @@ use std::sync::{Arc};
 use super::super::network::{ProtectedQueue};
 use super::ClientID;
 use super::super::network::messaging::{MsgToClient,MsgToServer};
-use super::super::identity::{LocationID,EntityID};
+use super::super::identity::{LocationID,EntityID,ObjectID};
 use std::time::{Instant,Duration};
 
 // use self::rand::{SeedableRng, Rng, Isaac64Rng};
 // use self::rand::{SeedableRng, Rng, Isaac64Rng};
 use super::game_state::locations::{Location};
 use super::entities::{EntityDataSet};
+use super::objects::{ObjectDataSet};
 
 const WIDTH : f64 = 500.0;
 const HEIGHT : f64 = 400.0;
@@ -47,6 +48,15 @@ struct MyData {
     cid : ClientID,
 }
 
+struct Dataset {
+    asset_manager : AssetManager,
+    entity_dataset : EntityDataSet,
+    object_dataset : ObjectDataSet,
+    data_requests_supressed_until : Timer,
+    outgoing_request_cache : Vec<MsgToServer>,
+
+}
+
 type ScreenPoint = [f64;2];
 
 
@@ -60,32 +70,39 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
         cid : cid,
     };
 
-    let mut asset_manager = AssetManager::new(&window.factory);
-    let mut entity_data = EntityDataSet::new();
-
-    let mut entity_data_suppressed_until = Timer {
-        ins : Instant::now(),
-        setdur : Duration::from_millis(500),
+    let mut dataset = Dataset {
+        asset_manager : AssetManager::new(&window.factory),
+        entity_dataset : EntityDataSet::new(),
+        object_dataset : ObjectDataSet::new(),
+        data_requests_supressed_until : Timer {ins : Instant::now(),setdur : Duration::from_millis(500)},
+        outgoing_request_cache : vec![],
     };
-    let mut outgoing_update_requests : Vec<MsgToServer> = vec![];
 
-    outgoing_update_requests.push(
+    // let mut asset_manager = AssetManager::new(&window.factory);
+    // let mut entity_data = EntityDataSet::new();
+
+    // let mut entity_data_suppressed_until = Timer {
+    //     ins : Instant::now(),
+    //     setdur : Duration::from_millis(500),
+    // };
+    // let mut outgoing_update_requests : Vec<MsgToServer> = vec![];
+
+    dataset.outgoing_request_cache.push(
         MsgToServer::RequestControlling
     );
     println!("Client game loop");
+
+    // asset_manager.update_oid_aid(0, 0);
+
     let mut mouse_at : Option<[f64 ; 2]> = None;
     while let Some(e) = window.next() {
-
         if let Some(_) = e.render_args() {
             window.draw_2d(&e, | _ , graphics| clear([0.0; 4], graphics));
             render_location(
                 &e,
                 &mut window,
                 &mut my_data,
-                &mut outgoing_update_requests,
-                &mut asset_manager,
-                &entity_data,
-                &mut entity_data_suppressed_until,
+                &mut dataset,
             );
         }
         if let Some(z) = e.mouse_cursor_args() {
@@ -96,7 +113,7 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
                 if let Some(ref mut v) = my_data.view {
                     if let Some(m) = mouse_at {
                         if let Some((eid, _)) = my_data.controlling {
-                            outgoing_update_requests.push(
+                            dataset.outgoing_request_cache.push(
                                 MsgToServer::ControlMoveTo(
                                     my_data.controlling.unwrap().1,
                                     eid,
@@ -114,9 +131,10 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
             synchronize(
                 &client_in,
                 &client_out,
-                &mut outgoing_update_requests,
+                // &mut outgoing_update_requests,
                 &mut my_data,
-                &mut entity_data,
+                &mut dataset,
+                // &mut entity_data,
             );
         }
     }
@@ -124,9 +142,10 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
 
 fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
                client_out : &Arc<ProtectedQueue<MsgToServer>>,
-               outgoing_update_requests : &mut Vec<MsgToServer>,
+               // outgoing_update_requests : &mut Vec<MsgToServer>,
                my_data : &mut MyData,
-               entity_data : &mut EntityDataSet,
+               dataset : &mut Dataset,
+               // entity_data : &mut EntityDataSet,
               ) {
     //comment
     if let Some(drained) = client_in.impatient_drain() {
@@ -134,8 +153,11 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
         for d in drained {
             use MsgToClient::*;
             match d {
+                GiveObjectData(oid,data) => {
+                    dataset.object_dataset.insert(oid,data);
+                },
                 GiveEntityData(eid,data) => {
-                    entity_data.insert(eid,data);
+                    dataset.entity_dataset.insert(eid,data);
                 },
                 ApplyLocationDiff(lid,diff) => {
                     if let Some(ref mut view) = my_data.view {
@@ -145,7 +167,7 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
                             }
                         }
                     }
-                }
+                },
                 GiveLocationPrimitive(lid, loc_prim) => {
                     println!("OK got loc prim from serv");
                     if let Some((c_eid, c_lid)) = my_data.controlling {
@@ -174,11 +196,11 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
                     my_data.controlling = Some((eid,lid));
                     if going_to_new_loc {
                         my_data.view = None; //subsequent message will populate this
-                        outgoing_update_requests.push(
+                        dataset.outgoing_request_cache.push(
                             MsgToServer::RequestLocationData(lid)
                         ); // request data to populate `my_data.viewing`
                     }
-                }
+                },
                 _ => {
                     println!("Client engine got msg {:?} and didn't know how to deal", d);
                     unimplemented!();
@@ -186,8 +208,8 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
             }
         }
     }
-    if ! outgoing_update_requests.is_empty() {
-        client_out.lock_pushall_notify(outgoing_update_requests.drain(..));
+    if ! dataset.outgoing_request_cache.is_empty() {
+        client_out.lock_pushall_notify(dataset.outgoing_request_cache.drain(..));
     }
 }
 
@@ -202,50 +224,86 @@ fn am_controlling(eid : EntityID, my_data : &MyData) -> bool {
 fn render_location<E>(event : &E,
                    window : &mut PistonWindow,
                    my_data : &mut MyData,
-                   outgoing_update_requests : &mut Vec<MsgToServer>,
-                   asset_manager : &mut AssetManager,
-                   entity_data : & EntityDataSet,
-                   entity_data_suppressed_until : &mut Timer,
-               ) where E : GenericEvent {
-
+                   dataset : &mut Dataset,
+                   // outgoing_update_requests : &mut Vec<MsgToServer>,
+                   // asset_manager : &mut AssetManager,
+                   // entity_data : & EntityDataSet,
+                   // entity_data_suppressed_until : &mut Timer,
+) where E : GenericEvent {
     if let Some(ref v) = my_data.view {
-        let mut missing_eid_assets = vec![];
-        for (oid, pt_set) in v.get_location().object_iterator() {
-            let o_col = [0.2, 0.2, 0.2, 1.0];
-            // let tex : &G2dTexture = asset_manager.get_texture_for(ent_data.aid); // NONSESNSE
-            for pt in pt_set.iter() {
-                render_something_at(*pt, v, event, window, o_col);
-            }
-        }
-        for (eid, pt) in v.get_location().entity_iterator() {
-            if missing_eid_assets.contains(&eid) {
-                //already did this dance. waiting for it to arrive
-                continue;
-            }
-            if let Some(ent_data) = entity_data.get(*eid) {
-                let tex : &G2dTexture = asset_manager.get_texture_for(ent_data.aid);
-                let col = if am_controlling(*eid, &my_data) {
-                    [0.0, 1.0, 0.0, 1.0] //green
-                } else {
-                    [0.7, 0.7, 0.7, 1.0] //gray
-                };
-                render_something_at(*pt, v, event, window, col);
-            } else {
-                missing_eid_assets.push(eid);
-                continue;
-            }
-        }
-        if ! missing_eid_assets.is_empty() {
-            let now = Instant::now();
-            if entity_data_suppressed_until.ins < now {
-                for eid in missing_eid_assets {
-                    outgoing_update_requests.push(
-                        MsgToServer::RequestEntityData(*eid)
-                    ); // request to populate asset manager
+        window.draw_2d(event, |c, g| {
+            clear([0.0, 0.0, 0.0, 1.0], g);
+        });
+
+
+
+
+        let mut missing_oid_assets : Vec<ObjectID> = vec![];
+        window.draw_2d(event, |c, g| {
+            for (oid, pt_set) in v.get_location().object_iterator() {
+            // println!("drawing all oids {:?}", oid);
+                if missing_oid_assets.contains(&oid) {
+                    continue;
                 }
-                entity_data_suppressed_until.ins = now + entity_data_suppressed_until.setdur;
+                if let Some(object_data) = dataset.object_dataset.get(*oid) {
+                    let tex = dataset.asset_manager.get_texture_for(object_data.aid);
+                    for pt in pt_set {
+                        let screen_pt = v.translate_pt(*pt);
+                        if is_on_screen(&screen_pt) {
+                            image(tex, c.transform
+                                .trans(screen_pt[0], screen_pt[1]), g);
+                        }
+                    }
+                } else {
+                    missing_oid_assets.push(*oid);
+                }
+                if ! missing_oid_assets.is_empty() {
+                    let now = Instant::now();
+                    if dataset.data_requests_supressed_until.ins < now {
+                        for oid in missing_oid_assets.iter() {
+                            println!("Requesting OID {:?}'s data", &oid);
+                            dataset.outgoing_request_cache.push(
+                                MsgToServer::RequestObjectData(*oid)
+                            ); // request to populate asset manager
+                        }
+                        dataset.data_requests_supressed_until.ins = now + dataset.data_requests_supressed_until.setdur;
+                    }
+                }
             }
-        }
+        });
+
+
+
+        let mut missing_eid_assets : Vec<ObjectID> = vec![];
+        window.draw_2d(event, |c, g| {
+            for (eid, pt) in v.get_location().entity_iterator() {
+                if missing_eid_assets.contains(&eid) {
+                    continue;
+                }
+                if let Some(object_data) = dataset.entity_dataset.get(*eid) {
+                    let tex = dataset.asset_manager.get_texture_for(object_data.aid);
+                    let screen_pt = v.translate_pt(*pt);
+                    if is_on_screen(&screen_pt) {
+                        image(tex, c.transform
+                            .trans(screen_pt[0], screen_pt[1]), g);
+                    }
+                } else {
+                    missing_eid_assets.push(*eid);
+                }
+                if ! missing_eid_assets.is_empty() {
+                    let now = Instant::now();
+                    if dataset.data_requests_supressed_until.ins < now {
+                        for eid in missing_eid_assets.iter() {
+                            println!("Requesting EID {:?}'s data", &eid);
+                            dataset.outgoing_request_cache.push(
+                                MsgToServer::RequestEntityData(*eid)
+                            ); // request to populate asset manager
+                        }
+                        dataset.data_requests_supressed_until.ins = now + dataset.data_requests_supressed_until.setdur;
+                    }
+                }
+            }
+        });
     }
 }
 
