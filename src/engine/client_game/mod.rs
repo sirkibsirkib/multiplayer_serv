@@ -248,10 +248,11 @@ fn render_location<E>(event : &E,
                 if let Some(object_data) = dataset.object_dataset.get(*oid) {
                     let tex = dataset.asset_manager.get_texture_for(object_data.aid);
                     for pt in pt_set {
-                        let screen_pt = v.translate_pt(*pt);
-                        if is_on_screen(&screen_pt) {
-                            image(tex, c.transform
-                                .trans(screen_pt[0], screen_pt[1]), g);
+                        if let Some(screen_pt) = v.translate_pt(*pt) {
+                            if is_on_screen(&screen_pt) {
+                                image(tex, c.transform
+                                    .trans(screen_pt[0], screen_pt[1]), g);
+                            }
                         }
                     }
                 } else {
@@ -282,10 +283,12 @@ fn render_location<E>(event : &E,
                 }
                 if let Some(object_data) = dataset.entity_dataset.get(*eid) {
                     let tex = dataset.asset_manager.get_texture_for(object_data.aid);
-                    let screen_pt = v.translate_pt(*pt);
-                    if is_on_screen(&screen_pt) {
-                        image(tex, c.transform
-                            .trans(screen_pt[0], screen_pt[1]), g);
+                    //TODO make view do the drawing
+                    if let Some(screen_pt) = v.translate_pt(*pt) {
+                        if is_on_screen(&screen_pt) {
+                            image(tex, c.transform
+                                .trans(screen_pt[0], screen_pt[1]).zoom(0.5), g);
+                        }
                     }
                 } else {
                     missing_eid_assets.push(*eid);
@@ -314,28 +317,28 @@ fn is_on_screen(sp : &ScreenPoint) -> bool {
 
 const DRAW_RAD : f64 = 3.0;
 
-fn render_something_at<E>(pt : Point, v : &View, event : &E, window : &mut PistonWindow, col : [f32 ; 4])
-where E : GenericEvent {
-    let screen_pt = v.translate_pt(pt);
-    if is_on_screen(&screen_pt) {
-        let el = [
-            screen_pt[0] - DRAW_RAD,
-            screen_pt[1] - DRAW_RAD,
-            DRAW_RAD*2.0,
-            DRAW_RAD*2.0
-        ];
-        // println!("client sees eid {:?} ellipse {:?}", &eid, &el);
-        window.draw_2d(event, |context, graphics| {
-                    ellipse(
-                        col,
-                        el,
-                        context.transform,
-                        graphics
-                  );
-              }
-        );
-    }
-}
+// fn render_something_at<E>(pt : Point, v : &View, event : &E, window : &mut PistonWindow, col : [f32 ; 4])
+// where E : GenericEvent {
+//     let screen_pt = v.translate_pt(pt);
+//     if is_on_screen(&screen_pt) {
+//         let el = [
+//             screen_pt[0] - DRAW_RAD,
+//             screen_pt[1] - DRAW_RAD,
+//             DRAW_RAD*2.0,
+//             DRAW_RAD*2.0
+//         ];
+//         // println!("client sees eid {:?} ellipse {:?}", &eid, &el);
+//         window.draw_2d(event, |context, graphics| {
+//                     ellipse(
+//                         col,
+//                         el,
+//                         context.transform,
+//                         graphics
+//                   );
+//               }
+//         );
+//     }
+// }
 
 
 
@@ -348,7 +351,6 @@ fn init_window() -> PistonWindow {
 
     let event_settings = EventSettings {
         max_fps: 32,
-            // max_fps: 32,
         ups: game_state::UPDATES_PER_SEC,
         ups_reset: 2,
         swap_buffers: true,

@@ -10,6 +10,16 @@ pub struct AssetManager {
 }
 
 impl AssetManager {
+    pub fn get_tex_size(&mut self, aid : AssetID) -> (u32,u32) {
+        self.load_tex_if_missing(aid);
+        let t = self.assets.get(&aid).unwrap();
+        t.get_size()
+    }
+
+    pub fn get_tex_width(&mut self, aid : AssetID) -> u32 {
+        self.get_tex_size(aid).0
+    }
+
     fn aid_to_path(aid : AssetID) -> String {
         format!("./assets/asset_{}.png", aid)
     }
@@ -21,7 +31,7 @@ impl AssetManager {
         }
     }
 
-    pub fn get_texture_for(&mut self, aid : AssetID) -> &G2dTexture {
+    fn load_tex_if_missing(&mut self, aid : AssetID) {
         if ! self.assets.contains_key(&aid) {
             //load it first if you must
             let aid_path : &str = & Self::aid_to_path(aid);
@@ -33,6 +43,10 @@ impl AssetManager {
             ).expect(& format!("Couldn't find file {:?} for aid {:?}", aid_path, aid));
             self.assets.insert(aid, texture);
         }
+    }
+
+    pub fn get_texture_for(&mut self, aid : AssetID) -> &G2dTexture {
+        self.load_tex_if_missing(aid);
         self.assets.get(&aid).expect("zomg_wtf")
     }
 }

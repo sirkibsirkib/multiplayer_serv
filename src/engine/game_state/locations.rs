@@ -12,7 +12,7 @@ use ::identity::{SuperSeed,ObjectID};
 pub struct LocationPrimitive {
     pub cells_wide : u16,
     pub cells_high : u16,
-    pub cell_width : f32, //meters
+    pub cell_to_meters : f64,
     pub super_seed : SuperSeed,
 }
 
@@ -30,9 +30,12 @@ fn generate_objects(nf : &NoiseField, loc_prim : &LocationPrimitive) -> HashMap<
     for i in 0..loc_prim.cells_wide {
         for j in 0..loc_prim.cells_high {
             let pt = [i as i16, j as i16];
-            if nf.sample(pt) > 0.3 {
-                zero_set.insert(pt);
+            if i == j || i == 0 || j == 0 || i == loc_prim.cells_wide-1 || j == loc_prim.cells_high-1 {
+                 zero_set.insert(pt);
             }
+            // if nf.sample(pt) != -90.3 { //DEBUG
+            //     zero_set.insert(pt);
+            // }
         }
     }
     v.insert(0, zero_set);
@@ -45,7 +48,17 @@ impl Location {
     }
 
     pub fn point_is_free(&self, pt : Point) -> bool {
-        self.entities.get_by_second(&pt) == None
+        if self.entities.get_by_second(&pt).is_some() {
+            return false;
+        }
+        for pt_set in self.objects.values() {
+            for p in pt_set.iter() {
+                if *p == pt {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     pub fn new(location_primitive : LocationPrimitive) -> Location {
@@ -63,7 +76,7 @@ impl Location {
         for i in 0..self.location_primitive.cells_wide as i16 {
             for j in 0..self.location_primitive.cells_high as i16 {
                 let p : Point = [i,j];
-                if self.entity_at(p) == None {
+                if self.point_is_free(p) {
                     return Some(p)
                 }
             }

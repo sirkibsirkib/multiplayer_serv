@@ -30,7 +30,7 @@ pub fn start_location() -> Location {
     let start_loc_prim = LocationPrimitive {
         cells_wide : 50,
         cells_high : 50,
-        cell_width : 1.0,
+        cell_to_meters : 1.0, //in meters
         super_seed : START_LOCATION_LID as SuperSeed,
     };
     Location::new(start_loc_prim)

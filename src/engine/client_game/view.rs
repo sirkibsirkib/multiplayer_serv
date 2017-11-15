@@ -7,16 +7,12 @@ pub struct View {
 }
 
 pub struct ViewPerspective {
-    h_rad_units : f64,
-    v_rad_units : f64,
-    zoom : f64,
+    screen_meter_width : f64,
 }
 
 impl ViewPerspective {
     pub const DEFAULT_SURFACE : ViewPerspective = ViewPerspective {
-        h_rad_units : 50.0,
-        v_rad_units : 40.0,
-        zoom : 1.0,
+        screen_meter_width : 90.0,
     };
 }
 
@@ -32,6 +28,8 @@ impl View {
     }
 
     pub fn translate_screenpt(&self, screen_pt : ScreenPoint) -> Point {
+
+
         let prim = self.location.get_location_primitive();
         [
             (screen_pt[0]/WIDTH * prim.cells_wide as f64) as i16,
@@ -49,13 +47,21 @@ impl View {
     }
 
     //TODO what happens when outside screen?
-    pub fn translate_pt(&self, pt : Point) -> ScreenPoint {
-        //TODO make not stupid
+    pub fn translate_pt(&self, pt : Point) -> Option<ScreenPoint> {
         let prim = self.location.get_location_primitive();
-        [
-            pt[0] as f64 / prim.cells_wide as f64 * WIDTH,
-            pt[1] as f64 / prim.cells_high as f64 * HEIGHT,
-        ]
+        if let Some(center) = self.location.point_of(self.eid) {
+            let rel_pt = [pt[0] - center[0], pt[1] - center[1]];
+            let meter_to_pixels : f64 = WIDTH / self.vp.screen_meter_width;
+            let cells_to_pixels : f64 = prim.cell_to_meters * meter_to_pixels;
+            let q = [
+                (WIDTH / 2.0) + (rel_pt[0] as f64 * cells_to_pixels),
+                (HEIGHT / 2.0) + (rel_pt[1] as f64 * cells_to_pixels),
+            ];
+            println!("{:?} => {:?}", rel_pt, q);
+            Some(q)
+        } else {
+            None
+        }
     }
 
     #[inline]
