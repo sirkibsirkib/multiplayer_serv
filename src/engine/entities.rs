@@ -24,12 +24,14 @@ impl EntityDataSet {
 #[derive(Serialize,Deserialize,Copy,Clone,Debug)]
 pub struct EntityData {
     pub aid : AssetID,
+    pub width_meters : f64,
 }
 
 impl EntityData {
-    pub fn new(aid : AssetID) -> EntityData {
+    pub fn new(aid : AssetID, width_meters : f64) -> EntityData {
         EntityData {
             aid : aid,
+            width_meters : width_meters,
         }
     }
 }

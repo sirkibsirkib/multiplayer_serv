@@ -8,7 +8,6 @@ use super::super::identity::{EntityID,LocationID};
 use self::server_game_state::{LocationLoader,START_LOCATION_LID};
 use self::server_resources::ServerResources;
 
-use std::time::Duration;
 use std::sync::{Arc,Mutex};
 use std::time;
 use std::collections::HashMap;
@@ -195,7 +194,7 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                         if ! locked_ub.client_is_setup(d.cid) {
                             println!("CLIENT {:?} having first-time setup", d.cid);
                             let player_eid = server_data.use_next_eid();
-                            sr.borrow_mut_entity_data_set().insert(player_eid, EntityData::new(1));
+                            sr.borrow_mut_entity_data_set().insert(player_eid, EntityData::new(1, 0.7));
                             locked_ub.set_client_setup_true(d.cid);
                             server_data.cid_to_controlling.insert(d.cid, (player_eid,START_LOCATION_LID));
                             let free_pt : Point =

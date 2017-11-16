@@ -4,6 +4,9 @@ use std::thread;
 extern crate gfx_device_gl;
 
 #[macro_use]
+extern crate if_chain;
+
+#[macro_use]
 extern crate lazy_static;
 
 #[macro_use]

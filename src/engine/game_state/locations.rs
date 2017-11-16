@@ -29,13 +29,10 @@ fn generate_objects(nf : &NoiseField, loc_prim : &LocationPrimitive) -> HashMap<
     let mut zero_set = HashSet::new();
     for i in 0..loc_prim.cells_wide {
         for j in 0..loc_prim.cells_high {
-            let pt = [i as i16, j as i16];
-            if i == j || i == 0 || j == 0 || i == loc_prim.cells_wide-1 || j == loc_prim.cells_high-1 {
+            let pt : Point = [i as i16, j as i16];
+            if nf.sample(pt) > 0.1 {
                  zero_set.insert(pt);
             }
-            // if nf.sample(pt) != -90.3 { //DEBUG
-            //     zero_set.insert(pt);
-            // }
         }
     }
     v.insert(0, zero_set);
@@ -85,27 +82,18 @@ impl Location {
     }
 
     fn remove_eid(&mut self, eid : EntityID) -> Option<Point> {
-        if let Some((_,pt)) = self.entities.remove_by_first(&eid) {
-            Some(pt)
-        } else {
-            None
-        }
+        self.entities.remove_by_first(&eid)
+        .map(|eid_pt| eid_pt.1)
     }
 
     pub fn point_of(&self, eid : EntityID) -> Option<Point> {
-        if let Some(pt) = self.entities.get_by_first(&eid) {
-            Some(*pt)
-        } else {
-            None
-        }
+        self.entities.get_by_first(&eid)
+        .map(|pt| *pt)
     }
 
     fn entity_at(&self, pt : Point) -> Option<EntityID> {
-        if let Some(x) = self.entities.get_by_second(&pt) {
-            Some(*x)
-        } else {
-            None
-        }
+        self.entities.get_by_second(&pt)
+        .map(|ent| *ent)
     }
 
     pub fn apply_diff(&mut self, diff : Diff) -> Result<(),()> {
