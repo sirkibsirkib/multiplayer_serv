@@ -113,13 +113,11 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
                 if let Some(ref mut v) = my_data.view {
                     if let Some(m) = mouse_at {
                         if let Some((eid, _)) = my_data.controlling {
-                            dataset.outgoing_request_cache.push(
-                                MsgToServer::ControlMoveTo(
-                                    my_data.controlling.unwrap().1,
-                                    eid,
-                                    v.translate_screenpt(m),
-                                )
-                            );
+                            if let Some(pt) = v.translate_screenpt(m) {
+                                dataset.outgoing_request_cache.push(
+                                    MsgToServer::ControlMoveTo(my_data.controlling.unwrap().1, eid, pt)
+                                );
+                            }
                         }
                     }
                 }

@@ -7,6 +7,7 @@ pub struct EntityDataSet {
 }
 
 impl EntityDataSet {
+    pub const SAVE_PATH : &'static str = "./entity_data_set.lel";
     pub fn new() -> EntityDataSet {
         EntityDataSet {map : HashMap::new()}
     }

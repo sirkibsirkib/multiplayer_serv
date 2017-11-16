@@ -19,6 +19,7 @@ pub struct UserBase {
 }
 
 impl UserBase {
+    pub const SAVE_PATH: &'static str = "user_base.lel";
     pub const REGISTER_PATH: &'static str = "users_to_register/";
 
     pub fn new() -> UserBase {

@@ -7,6 +7,7 @@ pub struct ObjectDataSet {
 }
 
 impl ObjectDataSet {
+    pub const SAVE_PATH : &'static str = "./object_data_set.lel";
     pub fn new() -> ObjectDataSet {
         ObjectDataSet {map : HashMap::new()}
     }
@@ -23,12 +24,14 @@ impl ObjectDataSet {
 #[derive(Serialize,Deserialize,Copy,Clone,Debug)]
 pub struct ObjectData {
     pub aid : AssetID,
+    pub width_meters : f64,
 }
 
 impl ObjectData {
-    pub fn new(aid : AssetID) -> ObjectData {
+    pub fn new(aid : AssetID, width_meters : f64) -> ObjectData {
         ObjectData {
             aid : aid,
+            width_meters : width_meters,
         }
     }
 }

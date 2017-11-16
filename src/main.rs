@@ -144,13 +144,13 @@ fn main() {
 }
 
 fn load_user_base(sl : &SaverLoader) -> UserBase {
-    if let Ok(mut loaded) = sl.load_me::<UserBase>("user_base.lel") {
+    if let Ok(mut loaded) = sl.load_me::<UserBase>(UserBase::SAVE_PATH) {
         println!("loaded userbase file! {:?}", &loaded);
         loaded.log_everyone_out();
         loaded
     } else {
         let u = UserBase::new();
-        sl.save_me(&u, "user_base.lel").expect("Save went bad!");
+        sl.save_me(&u, UserBase::SAVE_PATH).expect("Save went bad!");
         println!("Created fresh userbase save");
         u
     }
