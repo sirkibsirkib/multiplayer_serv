@@ -136,19 +136,6 @@ impl UserBase {
     }
 }
 
-// impl Debug for UserBase {
-//     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-//         cid_to_username : HashMap<ClientID, BoundedString>,
-//         username_to_cid : HashMap<BoundedString, ClientID>,
-//         cid_to_password : HashMap<ClientID, BoundedString>,
-//         // cid_to_location : HashMap<ClientID, LocationID>,
-//         // cid_to_controlling : HashMap<ClientID,EntityID>,
-//         first_time_setup_pending : HashSet<ClientID>,
-//         logged_in : HashSet<ClientID>,
-//         next_avail_cid : ClientID,
-//     }
-// }
-
 #[derive(Copy,Clone,Deserialize,Serialize,Debug)]
 pub enum UserBaseError {
     AlreadyLoggedIn, UnknownUsername, WrongPassword,

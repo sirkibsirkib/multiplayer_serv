@@ -1,24 +1,7 @@
-clients "subscribe" to and "unsubscribe" from locationIDs
-    server has
-    subscribed_clients{
-        HashMap<LocationID,HashSet<ClientID>>,
-    }
-
-    whenever the server make a change somewhere, the server generates a broadcast message.
-        this broadcast is enqueued immediately, and sent later.
-
-        some other bookkeeping data is stored:
-            last_simulated : HashMap<LocationID,Instant>
-            last_backgrounded : HashMap<LocationID,Instant>
-
-    when a client subscribes to location NOT foreground-loaded, the server foreground loads it.
-        the server checks (last_simulated) and quickly predicts X foreground time ticks.
-
-    periodically, the server will iterate over background locations and check (last_backgrounded)
-        if they have been backgrounded long enough, they are unloaded.
-
-clients on boot subscribed nowhere, and send a special HelloWorld message
-    server ensures:
-        client is subscribed to at least 1 location
-        client controls 1 object
-    (if this is not the case, the server spawns the client, satisfying those reqs)
+> world surface generated from just some seed data
+> render rotating planet in 3 layers:
+    1. map surface, generated procedurally
+    ?? planet storm systems?
+    2. darkness layer. a black tarp with a hole for planet to peep through
+      + semitransparent dark side layer
+    3. atmospheric haze layer (opacity relative to atm. of planet)

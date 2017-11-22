@@ -1,6 +1,4 @@
 
-// use std::collections::HashSet;
-// use serde::{Serialize,Deserialize};
 use super::{BoundedString,UserBaseError};
 use ::identity::{EntityID,LocationID,ClientID,ClientIDSet,ObjectID};
 use ::engine::game_state::{Point};
@@ -40,7 +38,6 @@ pub enum MsgToClient {
     LoginFailure(UserBaseError),
 }
 
-
 //WRAPS MsgToServer
 #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub struct MsgFromClient {
@@ -49,8 +46,6 @@ pub struct MsgFromClient {
 }
 
 //WRAPS MsgToClient
-// #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
-// #[derive(Copy,Clone,Debug)]
 pub enum MsgToClientSet {
     Only(MsgToClient, ClientID),
     All(MsgToClient),

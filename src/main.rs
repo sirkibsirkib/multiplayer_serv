@@ -1,26 +1,20 @@
 use std::sync::{Arc,Mutex};
 use std::thread;
 
-extern crate gfx_device_gl;
-
+#[macro_use]
+extern crate serde_derive;
 #[macro_use]
 extern crate if_chain;
-
 #[macro_use]
 extern crate lazy_static;
-
 #[macro_use]
 extern crate clap;
 
 extern crate rand;
-// extern crate rustyline;
 extern crate bidir_map;
-
 extern crate serde;
-// extern crate serde_json;
-#[macro_use]
-extern crate serde_derive;
 extern crate bincode;
+extern crate gfx_device_gl;
 
 mod network;
 mod engine;

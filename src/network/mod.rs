@@ -3,8 +3,6 @@ use std::net::TcpListener;
 use std::error::Error;
 use std::thread;
 use std::net::TcpStream;
-// use std::fs;
-// use std::path::Path;
 use std;
 use super::saving::SaverLoader;
 use std::io::{ErrorKind};

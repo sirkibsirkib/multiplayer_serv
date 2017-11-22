@@ -39,15 +39,6 @@ pub fn start_location() -> Location {
 
 impl LocationLoader {
 
-    // pub fn get_location_primitive(&mut self, lid : LocationID) -> &LocationPrimitive {
-    //     let loc_guard = if self.load_at_least_background(lid, nm) {
-    //         self.background.get_mut(&lid).expect("must be in BG")
-    //     } else {
-    //         self.foreground.get_mut(&lid).expect("must be in FG, ye")
-    //     };
-    //     loc_guard.get_location_primitive()
-    // }
-
     pub fn borrow_location(&mut self, lid : LocationID) -> &Location {
         let loc_guard = if self.load_at_least_background(lid) {
             self.background.get_mut(&lid).expect("borrow be in BG")
@@ -151,11 +142,8 @@ impl LocationLoader {
     }
 
     pub fn consume_time_since_last_sim(&mut self, lid : LocationID) -> Option<Duration> {
-        if let Some(time) = self.last_simulated.remove(&lid) {
-            Some(time.elapsed())
-        } else {
-            None
-        }
+        self.last_simulated.remove(&lid)
+        .map(|t| t.elapsed())
     }
 
     /*

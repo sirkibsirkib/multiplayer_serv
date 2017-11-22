@@ -164,16 +164,15 @@ impl View {
                     }
                 }
             });
+            //end of huge-ass block
         }
     }
 }
 
 #[inline]
 fn calc_zoom(sprite_pixels : u32, view_width_meters : f64, rendered_width_meters : f64) -> f64 {
-    WIDTH
-    / sprite_pixels as f64
-    / view_width_meters
-    * rendered_width_meters
+    (WIDTH * rendered_width_meters)
+    / (sprite_pixels as f64 * view_width_meters)
 }
 
 fn is_on_screen(sp : &ScreenPoint) -> bool {
