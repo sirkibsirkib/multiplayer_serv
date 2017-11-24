@@ -21,13 +21,13 @@ use std::io::{stdin,stdout};
 mod server;
 mod client;
 pub mod single;
-pub mod messaging;
 pub mod userbase;
+pub mod messaging;
 
 use self::userbase::{UserBase,UserBaseError};
 
 // use super::engine::game_state::{Point};
-use self::messaging::{MsgFromClient,MsgToClientSet,MsgToClient,MsgToServer};
+use self::messaging::*;
 
 pub fn get_user_string() -> String {
     let mut s = String::new();

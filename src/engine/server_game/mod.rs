@@ -1,5 +1,6 @@
 mod server_game_state;
 mod server_resources;
+mod world_loader;
 
 use super::game_state;
 use ::points::*;
@@ -97,11 +98,8 @@ fn synchflood(serv_out : &Arc<ProtectedQueue<MsgToClientSet>>, location_loader :
 
 fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                serv_out : &Arc<ProtectedQueue<MsgToClientSet>>,
-               // location_loader : &mut LocationLoader,
                user_base : &Arc<Mutex<UserBase>>,
                server_data : &mut ServerData,
-               // entity_data_set : &mut EntityDataSet,
-               // object_data_set : &mut ObjectDataSet,
                sr : &mut ServerResources,
            ) {
     //comment
@@ -161,6 +159,18 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                     if let Some(&(_,old_lid)) = server_data.cid_to_controlling.get(&d.cid) {
                         sr.borrow_mut_location_loader().client_unsubscribe(d.cid, old_lid);
                     }
+                },
+                MsgToServer::RequestWorldData(wid) => {
+                    outgoing_updates.push(
+                        MsgToClientSet::Only(
+                            MsgToClient::GiveWorldPrimitive(
+                                wid,
+                                sr.borrow_mut_world_loader().get_world_primitive_for(wid),
+                            ),
+                            d.cid,
+                        )
+                    );
+
                 },
                 MsgToServer::RequestLocationData(lid) => {
                     sr.borrow_mut_location_loader().client_subscribe(d.cid, lid);

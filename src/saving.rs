@@ -32,7 +32,7 @@ impl SaverLoader {
         self.save_dir.clone().join(Path::new(rel))
     }
 
-    fn ensure_folder_exists(&self, path : &str) {
+    pub fn ensure_folder_exists(&self, path : &str) {
         let p = self.relative_path(path);
 
         if ! p.exists() {

@@ -1,8 +1,8 @@
-use super::{EntityID,WIDTH,HEIGHT,Location,Dataset};
+use super::{EntityID,WIDTH,HEIGHT,Location,Dataset,MyData};
 use ::points::*;
 use super::piston_window::{PistonWindow,GenericEvent,clear,image,Transformed};
 use std::time::{Instant,Duration};
-use ::identity::{ObjectID};
+use ::identity::*;
 use ::network::messaging::MsgToServer;
 
 pub struct View {
@@ -88,22 +88,17 @@ impl View {
         &mut self.location
     }
 
-    pub fn render_location<E>(
+    pub fn render_location_objects<E>(
                        &self,
                        event : &E,
                        window : &mut PistonWindow,
                        dataset : &mut Dataset,
     ) where E : GenericEvent {
-        window.draw_2d(event, |c, g| {
-            clear([0.0, 0.0, 0.0, 1.0], g);
-        });
         if let Some(center) = self.location.point_of(self.eid) {
             let mut missing_oid_assets : Vec<ObjectID> = vec![];
             window.draw_2d(event, |c, g| {
                 for (oid, pt_set) in self.get_location().object_iterator() {
-                    if missing_oid_assets.contains(&oid) {
-                        continue;
-                    }
+                    if missing_oid_assets.contains(&oid) {continue}
                     if let Some(object_data) = dataset.object_dataset.get(*oid) {
                         let zoom = calc_zoom(
                             dataset.asset_manager.get_tex_width(object_data.aid),
@@ -135,9 +130,16 @@ impl View {
                     }
                 }
             });
+        }
+    }
 
-
-
+    pub fn render_location_entities<E>(
+                       &self,
+                       event : &E,
+                       window : &mut PistonWindow,
+                       dataset : &mut Dataset,
+    ) where E : GenericEvent {
+        if let Some(center) = self.location.point_of(self.eid) {
             let mut missing_eid_assets : Vec<ObjectID> = vec![];
             window.draw_2d(event, |c, g| {
                 for (eid, pt) in self.get_location().entity_iterator() {
@@ -173,7 +175,43 @@ impl View {
                     }
                 }
             });
-            //end of huge-ass block
+        }
+    }
+
+    pub fn clear_window<E>(event : &E, window : &mut PistonWindow) where E : GenericEvent {
+        window.draw_2d(event, |_, g| { clear([0.0, 0.0, 0.0, 1.0], g); });
+    }
+
+    pub fn render_location<E>(
+                       &self,
+                       event : &E,
+                       window : &mut PistonWindow,
+                       dataset : &mut Dataset,
+    ) where E : GenericEvent {
+        self.render_location_objects(event, window, dataset);
+        self.render_location_entities(event, window, dataset);
+    }
+
+    pub fn render_world<E>(
+                       &self,
+                       event : &E,
+                       window : &mut PistonWindow,
+                       dataset : &mut Dataset,
+                       wid: WorldID,
+    ) where E : GenericEvent {
+
+        if let Ok(map_tex) = dataset.asset_manager.get_map_for(wid) {
+            window.draw_2d(event, |c, g| {
+                image(map_tex, c.transform.trans(0.0, 100.0), g);
+            });
+        } else {
+            let now = Instant::now();
+            if dataset.data_requests_supressed_until.ins < now {
+                dataset.outgoing_request_cache.push(
+                    MsgToServer::RequestWorldData(wid)
+                );
+                dataset.data_requests_supressed_until.ins = now + dataset.data_requests_supressed_until.setdur;
+            }
         }
     }
 }
@@ -185,7 +223,7 @@ fn calc_zoom(sprite_pixels : u32, view_width_meters : f64, rendered_width_meters
 }
 
 fn is_on_screen(sp : &CPoint2) -> bool {
-    true
-    // sp.x >= 0.0 && sp.x < WIDTH as f32
-    // && sp.y >= 0.0 && sp.y < HEIGHT as f32
+    // true
+    sp.x >= 0.0 && sp.x < WIDTH as f32
+    && sp.y >= 0.0 && sp.y < HEIGHT as f32
 }

@@ -1,4 +1,6 @@
-// use serde::{Serialize,Deserialize};
+
+use ::points::*;
+
 use std::fmt::{Debug,Formatter};
 use std::collections::HashSet;
 
@@ -14,6 +16,12 @@ pub type WorldID = u32;
 pub type SuperSeed = u64;
 
 //////////////////////////////////////////////////////////////////////////////////
+#[derive(Debug,Copy,Clone)]
+pub struct UniquePoint {
+    lid: LocationID,
+    c_pt: CPoint2
+}
+
 
 #[derive(Copy,Clone,Serialize,Deserialize)]
 pub struct ClientIDSet {

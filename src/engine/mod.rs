@@ -3,8 +3,6 @@ mod client_game;
 mod server_game;
 pub mod entities;
 pub mod objects;
-pub mod procedural;
-pub mod primitives;
 // pub mod server_game_state;
 
 use std::sync::{Arc,Mutex};
@@ -34,6 +32,8 @@ Manages the shared game state
 */
 pub fn client_engine(client_in : Arc<ProtectedQueue<MsgToClient>>,
                     client_out : Arc<ProtectedQueue<MsgToServer>>,
-                    c_id : ClientID) {
-    client_game::game_loop(client_in, client_out, c_id);
+                    c_id : ClientID,
+                    sl: SaverLoader,
+                ) {
+    client_game::game_loop(client_in, client_out, c_id, sl);
 }

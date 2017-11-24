@@ -4,7 +4,9 @@ use ::engine::objects::{ObjectDataSet};
 use super::server_game_state::{LocationLoader};
 use std::collections::HashMap;
 use super::SaverLoader;
-use ::identity::{EntityID,ClientID,LocationID};
+use ::identity::*;
+
+use super::world_loader::WorldLoader;
 
 // subset of data that needs to be persistent between games. ie loaded and saved
 #[derive(Serialize,Deserialize,Debug)]
@@ -13,6 +15,7 @@ struct Persistent {
     cid_to_controlling : HashMap<ClientID, (EntityID,LocationID)>,
     entity_data_set : EntityDataSet,
     object_data_set : ObjectDataSet,
+    world_loader : WorldLoader,
 }
 
 impl Persistent {
@@ -31,6 +34,7 @@ impl Persistent {
                     cid_to_controlling : HashMap::new(),
                     entity_data_set : EntityDataSet::new(),
                     object_data_set : ObjectDataSet::new(),
+                    world_loader : WorldLoader::new(),
                 }
             }
         }
@@ -79,6 +83,11 @@ impl ServerResources {
         &self.persistent.entity_data_set
     }
 
+    #[inline]
+    pub fn borrow_world_loader(&self) -> &WorldLoader {
+        &self.persistent.world_loader
+    }
+
     ///////////////////////////////////////////////////// MUT BORROWS
 
     #[inline]
@@ -94,5 +103,10 @@ impl ServerResources {
     #[inline]
     pub fn borrow_mut_entity_data_set(&mut self) -> &mut EntityDataSet {
         &mut self.persistent.entity_data_set
+    }
+
+    #[inline]
+    pub fn borrow_mut_world_loader(&mut self) -> &mut WorldLoader {
+        &mut self.persistent.world_loader
     }
 }

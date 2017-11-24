@@ -14,13 +14,16 @@ use std::sync::{Arc};
 use super::super::network::{ProtectedQueue};
 use super::ClientID;
 use super::super::network::messaging::{MsgToClient,MsgToServer};
-use super::super::identity::{LocationID,EntityID,ObjectID};
+use super::super::identity::*;
 use std::time::{Instant,Duration};
 use super::game_state::locations::{Location};
+use super::game_state::worlds::World;
 use super::entities::{EntityDataSet};
 use super::objects::{ObjectDataSet};
-use super::primitives::*;
+use ::utils::traits::*;
 use ::points::*;
+use std::path::Path;
+use ::saving::SaverLoader;
 
 const WIDTH : f64 = 500.0;
 const HEIGHT : f64 = 400.0;
@@ -38,6 +41,8 @@ struct MyData {
     view : Option<View>,
     controlling : Option<(EntityID,LocationID)>,
     cid : ClientID,
+    wid: WorldID,
+    viewing_map: bool,
 }
 
 struct Dataset {
@@ -50,17 +55,21 @@ struct Dataset {
 
 pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
                  client_out : Arc<ProtectedQueue<MsgToServer>>,
-                 cid : ClientID) {
+                 cid : ClientID,
+                 sl: SaverLoader,
+             ) {
     let mut window = init_window();
     let mut my_data = MyData {
-        view : None,
-        controlling : None,
-        cid : cid,
+        view: None,
+        controlling: None,
+        cid: cid,
+        wid: 0,
+        viewing_map: false,
     };
     // let mut remote_info = RemoteInfo::new();
 
     let mut dataset = Dataset {
-        asset_manager : AssetManager::new(&window.factory),
+        asset_manager : AssetManager::new(&window.factory, sl),
         entity_dataset : EntityDataSet::new(),
         object_dataset : ObjectDataSet::new(),
         data_requests_supressed_until : Timer {ins : Instant::now(),setdur : Duration::from_millis(500)},
@@ -77,7 +86,12 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
         if let Some(_) = e.render_args() {
             window.draw_2d(&e, | _ , graphics| clear([0.0; 4], graphics));
             if let Some(ref v) = my_data.view {
-                v.render_location(&e, &mut window, &mut dataset);
+                View::clear_window(&e, &mut window);
+                if my_data.viewing_map {
+                    v.render_world(&e, &mut window, &mut dataset, my_data.wid);
+                } else {
+                    v.render_location(&e, &mut window, &mut dataset);
+                }
             }
         }
         if let Some(q) = e.mouse_scroll_args() {
@@ -105,6 +119,9 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
                         );
                     }
                 }
+            } else if button == Button::Keyboard(Key::M) {
+                my_data.viewing_map = !my_data.viewing_map;
+                println!("PRESSED M. viewing map is {}", my_data.viewing_map);
             }
         }
 
@@ -133,6 +150,13 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
         for d in drained {
             use MsgToClient::*;
             match d {
+                GiveWorldPrimitive(wid, world_prim) => {
+                    if ! dataset.asset_manager.has_map_for(wid) {
+                        let w = World::new(world_prim);
+                        w.to_png(Path::new(&World::save_path(wid)), 400).is_ok();
+                        println!("Generating asset");
+                    }
+                },
                 GiveObjectData(oid,data) => {
                     dataset.object_dataset.insert(oid,data);
                 },

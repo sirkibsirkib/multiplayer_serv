@@ -5,7 +5,7 @@ use ::engine::game_state::locations::{Location,LocationPrimitive};
 use ::identity::{LocationID,SuperSeed};
 use super::{ClientID,Diff};
 use ::identity::ClientIDSet;
-use ::engine::primitives::*;
+use ::utils::traits::*;
 
 
 pub const START_LOCATION_LID : LocationID = 0;
@@ -24,8 +24,6 @@ pub struct LocationLoader {
     last_simulated : HashMap<LocationID,Instant>,
     last_backgrounded : HashMap<LocationID,Instant>,
 }
-
-
 
 pub fn start_location() -> Location {
     let start_loc_prim = LocationPrimitive {

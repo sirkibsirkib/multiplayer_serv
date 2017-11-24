@@ -1,8 +1,7 @@
-extern crate noise;
-use self::noise::{Perlin,Seedable,NoiseModule};
-use ::points::*;
-use ::utils::sigmoid;
 
+use ::noise::{Perlin,Seedable,NoiseModule};
+use ::utils::funcs::sigmoid;
+use ::points::*;
 
 extern crate rand;
 use self::rand::{Rng};

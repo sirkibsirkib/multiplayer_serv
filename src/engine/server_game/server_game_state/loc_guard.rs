@@ -2,7 +2,7 @@ use super::SaverLoader;
 use ::engine::game_state::locations::{Location,LocationPrimitive};
 use ::identity::{LocationID};
 use super::{Diff};
-use ::engine::primitives::*;
+use ::utils::traits::*;
 // use super::super::network::messaging::MsgToClient;
 
 

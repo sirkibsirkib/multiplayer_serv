@@ -1,10 +1,11 @@
 
 use super::{BoundedString,UserBaseError};
-use ::identity::{EntityID,LocationID,ClientID,ClientIDSet,ObjectID};
+use ::identity::*;
 use ::points::*;
 use ::engine::game_state::locations::LocationPrimitive;
 use ::engine::entities::{EntityData};
 use ::engine::objects::{ObjectData};
+use ::engine::game_state::worlds::WorldPrimitive;
 
 //change applied to a SINGLE location
 #[derive(Clone,Copy,Serialize,Deserialize,Debug)]
@@ -24,6 +25,7 @@ pub enum MsgToServer {
     RequestObjectData(ObjectID),
     RequestControlling,
     RequestLocationData(LocationID),
+    RequestWorldData(WorldID),
 }
 
 //PRIMITIVE
@@ -34,6 +36,7 @@ pub enum MsgToClient {
     ApplyLocationDiff(LocationID,Diff),
     GiveControlling(EntityID,LocationID),
     GiveLocationPrimitive(LocationID,LocationPrimitive),
+    GiveWorldPrimitive(WorldID,WorldPrimitive),
     LoginSuccessful(ClientID),
     LoginFailure(UserBaseError),
 }

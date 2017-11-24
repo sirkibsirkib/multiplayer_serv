@@ -11,6 +11,8 @@ extern crate lazy_static;
 #[macro_use]
 extern crate clap;
 
+extern crate noise;
+
 extern crate rand;
 extern crate bidir_map;
 extern crate serde;
@@ -67,9 +69,10 @@ fn main() {
                 client_in,
                 client_out,
             ).expect("Failed to spawn client");
+            let sl = SaverLoader::new(&config.save_dir().expect("NO SL DIR"));
 
             //this call consumes the thread. It begins the client-side game loop
-            engine::client_engine(client_in2, client_out2, c_id);
+            engine::client_engine(client_in2, client_out2, c_id, sl);
         }
 
         &RunMode::Server => {
@@ -123,6 +126,7 @@ fn main() {
 
 
             let sl = SaverLoader::new(&config.save_dir().expect("NO SL DIR"));
+            let sl2 = sl.clone();
 
             let mut raw_userbase = load_user_base(&sl);
             raw_userbase.consume_registration_files(&sl.relative_path(UserBase::REGISTER_PATH));
@@ -138,7 +142,7 @@ fn main() {
             });
             //consumes this thread to create client-side aka `local` game loop & engine
             //main thread == client thread. So if piston exists, everything exits
-            engine::client_engine(client_in2, client_out2, cid)
+            engine::client_engine(client_in2, client_out2, cid, sl2)
         }
     }
 }

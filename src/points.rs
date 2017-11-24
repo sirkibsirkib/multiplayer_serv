@@ -36,6 +36,12 @@ impl CPoint2 {
         let dy = self.y - o.y;
         (dx*dx*mult_x + dy*dy*mult_y).sqrt()
     }
+    pub fn avg_with(self, other: CPoint2) -> CPoint2 {
+        CPoint2::new(
+            (self.x + other.x) / 2.0,
+            (self.y + other.y) / 2.0,
+        )
+    }
 }
 
 impl hash::Hash for CPoint2 {

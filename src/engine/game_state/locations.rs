@@ -7,10 +7,18 @@ use ::network::messaging::Diff;
 use ::rand::{SeedableRng,Rng,Isaac64Rng};
 
 use ::identity::*;
-use ::engine::procedural::{NoiseField};
+use ::utils::noise::*;
+use ::utils::traits::*;
 use ::identity::{SuperSeed,ObjectID};
 
-use ::engine::primitives::*;
+
+#[derive(Serialize,Deserialize,Debug,Copy,Clone)]
+pub struct LocationPrimitive {
+    pub cells_wide : u16,
+    pub cells_high : u16,
+    pub cell_to_meters : f64,
+    pub super_seed : SuperSeed,
+}
 
 impl Primitive<Location> for LocationPrimitive {
     fn generate_new(self) -> Location {
@@ -26,13 +34,6 @@ impl Primitive<Location> for LocationPrimitive {
     }
 }
 
-#[derive(Serialize,Deserialize,Debug,Copy,Clone)]
-pub struct LocationPrimitive {
-    pub cells_wide : u16,
-    pub cells_high : u16,
-    pub cell_to_meters : f64,
-    pub super_seed : SuperSeed,
-}
 
 #[derive(Debug)]
 pub struct Location {
