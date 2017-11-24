@@ -7,8 +7,11 @@ extern crate image;
 
 mod view;
 mod asset_manager;
+mod cache_manager;
 
-use self::asset_manager::AssetManager;
+use self::cache_manager::CacheManager;
+use std::collections::HashMap;
+use self::asset_manager::{AssetManager,HardcodedAssets};
 use self::view::{View,ViewPerspective};
 use std::sync::{Arc};
 use super::super::network::{ProtectedQueue};
@@ -17,7 +20,7 @@ use super::super::network::messaging::{MsgToClient,MsgToServer};
 use super::super::identity::*;
 use std::time::{Instant,Duration};
 use super::game_state::locations::{Location};
-use super::game_state::worlds::World;
+use super::game_state::worlds::{WorldPrimitive,World};
 use super::entities::{EntityDataSet};
 use super::objects::{ObjectDataSet};
 use ::utils::traits::*;
@@ -25,7 +28,7 @@ use ::points::*;
 use std::path::Path;
 use ::saving::SaverLoader;
 
-const WIDTH : f64 = 500.0;
+const WIDTH : f64 = 600.0;
 const HEIGHT : f64 = 400.0;
 
 use self::piston_window::*;
@@ -42,10 +45,11 @@ struct MyData {
     controlling : Option<(EntityID,LocationID)>,
     cid : ClientID,
     wid: WorldID,
+    longitude: f64,
     viewing_map: bool,
 }
 
-struct Dataset {
+pub struct Dataset {
     asset_manager : AssetManager,
     entity_dataset : EntityDataSet,
     object_dataset : ObjectDataSet,
@@ -64,9 +68,14 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
         controlling: None,
         cid: cid,
         wid: 0,
+        longitude: 0.0,
         viewing_map: false,
     };
     // let mut remote_info = RemoteInfo::new();
+
+    let mut cache_manager = CacheManager::new(sl.clone());
+    let hardcoded_assets = HardcodedAssets::new(&mut window.factory);
+
 
     let mut dataset = Dataset {
         asset_manager : AssetManager::new(&window.factory, sl),
@@ -80,6 +89,7 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
         MsgToServer::RequestControlling
     );
     println!("Client game loop");
+    let mut holding : Option<Button> = None;
 
     let mut mouse_at : Option<[f64 ; 2]> = None;
     while let Some(e) = window.next() {
@@ -88,7 +98,7 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
             if let Some(ref v) = my_data.view {
                 View::clear_window(&e, &mut window);
                 if my_data.viewing_map {
-                    v.render_world(&e, &mut window, &mut dataset, my_data.wid);
+                    v.render_world(&e, &mut window, &mut dataset, my_data.wid, &hardcoded_assets, my_data.longitude);
                 } else {
                     v.render_location(&e, &mut window, &mut dataset);
                 }
@@ -103,10 +113,17 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
                 }
             }
         }
+
         if let Some(z) = e.mouse_cursor_args() {
             mouse_at = Some(z);
         }
+        if let Some(button) = e.press_args() {
+            holding = Some(button);
+        }
+
+
         if let Some(button) = e.release_args() {
+            holding = None;
             if button == Button::Mouse(MouseButton::Left) {
                 if_chain! {
                     if let Some(ref mut v) = my_data.view;
@@ -121,17 +138,27 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
                 }
             } else if button == Button::Keyboard(Key::M) {
                 my_data.viewing_map = !my_data.viewing_map;
-                println!("PRESSED M. viewing map is {}", my_data.viewing_map);
             }
         }
 
         if let Some(_) = e.update_args() {
+            //Holding key
+            if let Some(holding_thing) = holding {
+                if holding_thing == Button::Keyboard(Key::D) {
+                    my_data.longitude += 0.004;
+                    if my_data.longitude >= 1.0 {my_data.longitude -= 1.0}
+                } else if holding_thing == Button::Keyboard(Key::A) {
+                    my_data.longitude -= 0.004;
+                    if my_data.longitude < 0.0 {my_data.longitude += 1.0}
+                }
+            }
             //SYNCHRONIZE!
             synchronize(
                 &client_in,
                 &client_out,
                 &mut my_data,
                 &mut dataset,
+                &mut cache_manager,
             );
         }
     }
@@ -142,6 +169,7 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
                // outgoing_update_requests : &mut Vec<MsgToServer>,
                my_data : &mut MyData,
                dataset : &mut Dataset,
+               cache_manager : &mut CacheManager,
                // entity_data : &mut EntityDataSet,
               ) {
     //comment
@@ -151,11 +179,8 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
             use MsgToClient::*;
             match d {
                 GiveWorldPrimitive(wid, world_prim) => {
-                    if ! dataset.asset_manager.has_map_for(wid) {
-                        let w = World::new(world_prim);
-                        w.to_png(Path::new(&World::save_path(wid)), 400).is_ok();
-                        println!("Generating asset");
-                    }
+                    cache_manager.cache_world_primitive(wid, world_prim);
+                    cache_manager.ensure_map_file_exists_for(wid, &dataset.asset_manager);
                 },
                 GiveObjectData(oid,data) => {
                     dataset.object_dataset.insert(oid,data);

@@ -11,7 +11,7 @@ use std::fs::create_dir;
 use std::fmt::Debug;
 use ::network::userbase::UserBase;
 
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub struct SaverLoader {
     save_dir : Box<PathBuf>,
 }
@@ -30,6 +30,10 @@ impl SaverLoader {
 
     pub fn relative_path<'a>(&self, rel : &'a str) -> PathBuf {
         self.save_dir.clone().join(Path::new(rel))
+    }
+
+    pub fn file_folder_exists(&self, path : &str) -> bool {
+        self.relative_path(path).exists()
     }
 
     pub fn ensure_folder_exists(&self, path : &str) {

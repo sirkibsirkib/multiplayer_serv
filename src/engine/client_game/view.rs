@@ -4,6 +4,9 @@ use super::piston_window::{PistonWindow,GenericEvent,clear,image,Transformed};
 use std::time::{Instant,Duration};
 use ::identity::*;
 use ::network::messaging::MsgToServer;
+use super::asset_manager::HardcodedAssets;
+use super::piston_window::{G2dTexture,Texture,TextureSettings,Flip};
+use super::piston_window::ImageSize;
 
 pub struct View {
     eid : EntityID,
@@ -198,11 +201,24 @@ impl View {
                        window : &mut PistonWindow,
                        dataset : &mut Dataset,
                        wid: WorldID,
+                       hardcoded_assets : &HardcodedAssets,
+                       longitude_center: f64,
     ) where E : GenericEvent {
 
+        // dataset.longitude = (dataset.longitude + 0.01 % 1.0);
+        let planet_mask_tex = &hardcoded_assets.planet_mask;
         if let Ok(map_tex) = dataset.asset_manager.get_map_for(wid) {
+            let normal_offset = -longitude_center*map_tex.get_size().0 as f64;
+            let wrapped_offset = (if longitude_center > 0.5 {
+                1.0-longitude_center
+            } else {
+                -1.0-longitude_center
+            }) *map_tex.get_size().0 as f64;
             window.draw_2d(event, |c, g| {
-                image(map_tex, c.transform.trans(0.0, 100.0), g);
+                image(map_tex, c.transform.trans(WIDTH/2.0 + normal_offset , 50.0), g);
+                image(map_tex, c.transform.trans(WIDTH/2.0 + wrapped_offset , 50.0), g);
+                image(planet_mask_tex, c.transform.trans(0.0, 50.0), g);
+
             });
         } else {
             let now = Instant::now();

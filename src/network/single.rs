@@ -3,16 +3,18 @@ use std::thread;
 use super::{UserBase};
 use super::{bound_string};
 use super::ClientID;
+use ::saving::SaverLoader;
 
 use super::{ProtectedQueue,MsgFromClient,MsgToClientSet,MsgToClient,MsgToServer};
 
 
-pub fn single_player_login(userbase : &Arc<Mutex<UserBase>>) -> ClientID {
+pub fn single_player_login(raw_userbase : &mut UserBase, sl: &SaverLoader) -> ClientID {
     print!("Please give username: ");
     let username = bound_string(super::get_user_string());
     print!("Please give password: ");
     let password = bound_string(super::get_user_string());
-    userbase.lock().unwrap().login(username, password)
+    raw_userbase.consume_registration_files(&sl.relative_path(UserBase::REGISTER_PATH));
+    raw_userbase.login(username, password)
     .expect("SINGLEPLAYER LOGIN FAIL")
 }
 

@@ -107,6 +107,7 @@ enum Weighting {
     Equal, Higher(f32), Lower(f32),
 }
 
+
 #[derive(Debug)]
 pub struct World {
     base_height: NoiseField,
@@ -123,9 +124,6 @@ pub struct World {
 }
 
 impl World {
-    pub fn save_path(wid: WorldID) -> String {
-        format!("./client_temp_assets/worldmap_{}.png", wid)
-    }
 
     pub fn get_size(&self) -> f32 {self.size}
 

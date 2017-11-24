@@ -129,13 +129,11 @@ fn main() {
             let sl2 = sl.clone();
 
             let mut raw_userbase = load_user_base(&sl);
-            raw_userbase.consume_registration_files(&sl.relative_path(UserBase::REGISTER_PATH));
-            //TODO register the one single user
-            let userbase : Arc<Mutex<UserBase>> = Arc::new(Mutex::new(raw_userbase));
 
             //spawns a coupler in new threads.
-            let cid : ClientID = network::single::single_player_login(&userbase);
+            let cid : ClientID = network::single::single_player_login(&mut raw_userbase, &sl);
             println!("single login {:?}", cid);
+            let userbase : Arc<Mutex<UserBase>> = Arc::new(Mutex::new(raw_userbase));
             network::spawn_coupler(server_in, server_out, client_in, client_out, cid);
             thread::spawn(move || {
                 engine::server_engine(server_in2, server_out2, userbase, sl);
