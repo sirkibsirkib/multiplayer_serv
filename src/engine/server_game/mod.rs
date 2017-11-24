@@ -2,7 +2,7 @@ mod server_game_state;
 mod server_resources;
 
 use super::game_state;
-use super::game_state::{Point};
+use ::points::*;
 use super::entities::{EntityData};
 use super::super::identity::{EntityID,LocationID};
 use self::server_game_state::{LocationLoader,START_LOCATION_LID};
@@ -197,7 +197,7 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                             sr.borrow_mut_entity_data_set().insert(player_eid, EntityData::new(1, 0.7));
                             locked_ub.set_client_setup_true(d.cid);
                             server_data.cid_to_controlling.insert(d.cid, (player_eid,START_LOCATION_LID));
-                            let free_pt : Point =
+                            let free_pt : DPoint2 =
                                 sr.borrow_mut_location_loader()
                                 .borrow_location(START_LOCATION_LID)
                                 .free_point()

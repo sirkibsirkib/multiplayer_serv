@@ -1,12 +1,30 @@
 // use std::collections::HashMap;
 use bidir_map::BidirMap;
-use super::Point;
+// use super::Point;
+use ::points::DPoint2;
 use std::collections::{HashSet,HashMap};
 use ::network::messaging::Diff;
+use ::rand::{SeedableRng,Rng,Isaac64Rng};
 
 use ::identity::*;
 use ::engine::procedural::{NoiseField};
 use ::identity::{SuperSeed,ObjectID};
+
+use ::engine::primitives::*;
+
+impl Primitive<Location> for LocationPrimitive {
+    fn generate_new(self) -> Location {
+        let mut rng = Isaac64Rng::from_seed(&[self.super_seed]);
+        let nf = NoiseField::generate(&mut rng, [0.2, 1.0], 2);
+        let objects = generate_objects(&nf, &self);
+        Location {
+            location_primitive : self,
+            entities : BidirMap::new(),
+            objects : objects,
+            nfield_height : nf,
+        }
+    }
+}
 
 #[derive(Serialize,Deserialize,Debug,Copy,Clone)]
 pub struct LocationPrimitive {
@@ -19,18 +37,24 @@ pub struct LocationPrimitive {
 #[derive(Debug)]
 pub struct Location {
     location_primitive : LocationPrimitive,
-    entities : BidirMap<EntityID, Point>,
-    objects : HashMap<ObjectID,HashSet<Point>>,
+    entities : BidirMap<EntityID, DPoint2>,
+    objects : HashMap<ObjectID,HashSet<DPoint2>>,
     nfield_height : NoiseField,
 }
 
-fn generate_objects(nf : &NoiseField, loc_prim : &LocationPrimitive) -> HashMap<ObjectID,HashSet<Point>> {
+impl AppliesDiff<Diff> for Location {
+    fn apply_diff(&mut self, diff: &Diff) {
+
+    }
+}
+
+fn generate_objects(nf : &NoiseField, loc_prim : &LocationPrimitive) -> HashMap<ObjectID,HashSet<DPoint2>> {
     let mut v = HashMap::new();
     let mut zero_set = HashSet::new();
     for i in 0..loc_prim.cells_wide {
         for j in 0..loc_prim.cells_high {
-            let pt : Point = [i as i16, j as i16];
-            if nf.sample(pt) > 0.1 {
+            let pt : DPoint2 = DPoint2::new(i as i32, j as i32);
+            if nf.sample_2d(pt.continuous().scale(0.2)) > 0.01 {
                  zero_set.insert(pt);
             }
         }
@@ -44,7 +68,7 @@ impl Location {
         &self.location_primitive
     }
 
-    pub fn point_is_free(&self, pt : Point) -> bool {
+    pub fn point_is_free(&self, pt : DPoint2) -> bool {
         if self.entities.get_by_second(&pt).is_some() {
             return false;
         }
@@ -58,21 +82,10 @@ impl Location {
         return false;
     }
 
-    pub fn new(location_primitive : LocationPrimitive) -> Location {
-        let nf = NoiseField::from_super_seed(location_primitive.super_seed);
-        let objects = generate_objects(&nf, &location_primitive);
-        Location {
-            location_primitive : location_primitive,
-            entities : BidirMap::new(),
-            objects : objects,
-            nfield_height : nf,
-        }
-    }
-
-    pub fn free_point(&self) -> Option<Point> {
-        for i in 0..self.location_primitive.cells_wide as i16 {
-            for j in 0..self.location_primitive.cells_high as i16 {
-                let p : Point = [i,j];
+    pub fn free_point(&self) -> Option<DPoint2> {
+        for i in 0..self.location_primitive.cells_wide as i32 {
+            for j in 0..self.location_primitive.cells_high as i32 {
+                let p : DPoint2 = DPoint2::new(i,j);
                 if self.point_is_free(p) {
                     return Some(p)
                 }
@@ -81,17 +94,17 @@ impl Location {
         None
     }
 
-    fn remove_eid(&mut self, eid : EntityID) -> Option<Point> {
+    fn remove_eid(&mut self, eid : EntityID) -> Option<DPoint2> {
         self.entities.remove_by_first(&eid)
         .map(|eid_pt| eid_pt.1)
     }
 
-    pub fn point_of(&self, eid : EntityID) -> Option<Point> {
+    pub fn point_of(&self, eid : EntityID) -> Option<DPoint2> {
         self.entities.get_by_first(&eid)
         .map(|pt| *pt)
     }
 
-    fn entity_at(&self, pt : Point) -> Option<EntityID> {
+    fn entity_at(&self, pt : DPoint2) -> Option<EntityID> {
         self.entities.get_by_second(&pt)
         .map(|ent| *ent)
     }
@@ -123,7 +136,7 @@ impl Location {
         }
     }
 
-    pub fn oid_points(&self, oid : ObjectID) -> Option<&HashSet<Point>> {
+    pub fn oid_points(&self, oid : ObjectID) -> Option<&HashSet<DPoint2>> {
         self.objects.get(&oid)
     }
 
@@ -133,13 +146,13 @@ impl Location {
         )
     }
 
-    pub fn object_iterator<'a>(&'a self) -> Box<Iterator<Item=(&ObjectID,&HashSet<Point>)> + 'a> {
+    pub fn object_iterator<'a>(&'a self) -> Box<Iterator<Item=(&ObjectID,&HashSet<DPoint2>)> + 'a> {
         Box::new(
             self.objects.iter()
         )
     }
 
-    pub fn entity_iterator<'a>(&'a self) -> Box<Iterator<Item=(&EntityID,&Point)> + 'a> {
+    pub fn entity_iterator<'a>(&'a self) -> Box<Iterator<Item=(&EntityID,&DPoint2)> + 'a> {
         Box::new(
             self.entities.iter()
         )

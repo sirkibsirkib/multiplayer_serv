@@ -19,13 +19,15 @@ use std::time::{Instant,Duration};
 use super::game_state::locations::{Location};
 use super::entities::{EntityDataSet};
 use super::objects::{ObjectDataSet};
+use super::primitives::*;
+use ::points::*;
 
 const WIDTH : f64 = 500.0;
 const HEIGHT : f64 = 400.0;
 
 use self::piston_window::*;
 use super::game_state;
-use super::game_state::{Point};
+use ::points::*;
 
 struct Timer {
     ins : Instant,
@@ -45,9 +47,6 @@ struct Dataset {
     data_requests_supressed_until : Timer,
     outgoing_request_cache : Vec<MsgToServer>,
 }
-
-type ScreenPoint = [f64;2];
-
 
 pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
                  client_out : Arc<ProtectedQueue<MsgToServer>>,
@@ -99,7 +98,7 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
                     if let Some(ref mut v) = my_data.view;
                     if let Some(m) = mouse_at;
                     if let Some((eid, _)) = my_data.controlling;
-                    if let Some(pt) = v.translate_screenpt(m);
+                    if let Some(pt) = v.translate_screenpt(CPoint2::new(m[0] as f32, m[1] as f32));
                     then {
                         dataset.outgoing_request_cache.push(
                             MsgToServer::ControlMoveTo(my_data.controlling.unwrap().1, eid, pt)
@@ -156,7 +155,8 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
                             println!("... and I am expecting it");
                             my_data.view = Some(View::new(
                                 my_data.controlling.unwrap().0,
-                                Location::new(loc_prim),
+                                loc_prim.generate_new(),
+                                // Location::new(loc_prim),
                                 ViewPerspective::DEFAULT_SURFACE,
                             ));
                         }
@@ -201,117 +201,6 @@ fn am_controlling(eid : EntityID, my_data : &MyData) -> bool {
         false
     }
 }
-
-// fn render_location<E>(event : &E,
-//                    window : &mut PistonWindow,
-//                    view : &View,
-//                    dataset : &mut Dataset,
-// ) where E : GenericEvent {
-//     window.draw_2d(event, |c, g| {
-//         clear([0.0, 0.0, 0.0, 1.0], g);
-//     });
-//
-//     let mut missing_oid_assets : Vec<ObjectID> = vec![];
-//     window.draw_2d(event, |c, g| {
-//         for (oid, pt_set) in view.get_location().object_iterator() {
-//         // println!("drawing all oids {:?}", oid);
-//             if missing_oid_assets.contains(&oid) {
-//                 continue;
-//             }
-//             if let Some(object_data) = dataset.object_dataset.get(*oid) {
-//                 let tex = dataset.asset_manager.get_texture_for(object_data.aid);
-//                 for pt in pt_set {
-//                     if let Some(screen_pt) = view.translate_pt(*pt) {
-//                         if is_on_screen(&screen_pt) {
-//                             image(tex, c.transform
-//                                 .trans(screen_pt[0], screen_pt[1]), g);
-//                         }
-//                     }
-//                 }
-//             } else {
-//                 missing_oid_assets.push(*oid);
-//             }
-//             if ! missing_oid_assets.is_empty() {
-//                 let now = Instant::now();
-//                 if dataset.data_requests_supressed_until.ins < now {
-//                     for oid in missing_oid_assets.iter() {
-//                         println!("Requesting OID {:?}'s data", &oid);
-//                         dataset.outgoing_request_cache.push(
-//                             MsgToServer::RequestObjectData(*oid)
-//                         ); // request to populate asset manager
-//                     }
-//                     dataset.data_requests_supressed_until.ins = now + dataset.data_requests_supressed_until.setdur;
-//                 }
-//             }
-//         }
-//     });
-//
-//
-//
-//     let mut missing_eid_assets : Vec<ObjectID> = vec![];
-//     window.draw_2d(event, |c, g| {
-//         for (eid, pt) in view.get_location().entity_iterator() {
-//             if missing_eid_assets.contains(&eid) {
-//                 continue;
-//             }
-//             if let Some(object_data) = dataset.entity_dataset.get(*eid) {
-//                 let tex = dataset.asset_manager.get_texture_for(object_data.aid);
-//                 //TODO make view do the drawing
-//                 if let Some(screen_pt) = view.translate_pt(*pt) {
-//                     if is_on_screen(&screen_pt) {
-//                         image(tex, c.transform
-//                             .trans(screen_pt[0], screen_pt[1]).zoom(0.5), g);
-//                     }
-//                 }
-//             } else {
-//                 missing_eid_assets.push(*eid);
-//             }
-//             if ! missing_eid_assets.is_empty() {
-//                 let now = Instant::now();
-//                 if dataset.data_requests_supressed_until.ins < now {
-//                     for eid in missing_eid_assets.iter() {
-//                         println!("Requesting EID {:?}'s data", &eid);
-//                         dataset.outgoing_request_cache.push(
-//                             MsgToServer::RequestEntityData(*eid)
-//                         ); // request to populate asset manager
-//                     }
-//                     dataset.data_requests_supressed_until.ins = now + dataset.data_requests_supressed_until.setdur;
-//                 }
-//             }
-//         }
-//     });
-// }
-//
-// fn is_on_screen(sp : &ScreenPoint) -> bool {
-//     sp[0] >= 0.0 && sp[0] < WIDTH
-//     && sp[1] >= 0.0 && sp[1] < HEIGHT
-// }
-
-// const DRAW_RAD : f64 = 3.0;
-
-// fn render_something_at<E>(pt : Point, v : &View, event : &E, window : &mut PistonWindow, col : [f32 ; 4])
-// where E : GenericEvent {
-//     let screen_pt = v.translate_pt(pt);
-//     if is_on_screen(&screen_pt) {
-//         let el = [
-//             screen_pt[0] - DRAW_RAD,
-//             screen_pt[1] - DRAW_RAD,
-//             DRAW_RAD*2.0,
-//             DRAW_RAD*2.0
-//         ];
-//         // println!("client sees eid {:?} ellipse {:?}", &eid, &el);
-//         window.draw_2d(event, |context, graphics| {
-//                     ellipse(
-//                         col,
-//                         el,
-//                         context.transform,
-//                         graphics
-//                   );
-//               }
-//         );
-//     }
-// }
-
 
 
 

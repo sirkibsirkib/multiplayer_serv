@@ -1,7 +1,7 @@
 
 use super::{BoundedString,UserBaseError};
 use ::identity::{EntityID,LocationID,ClientID,ClientIDSet,ObjectID};
-use ::engine::game_state::{Point};
+use ::points::*;
 use ::engine::game_state::locations::LocationPrimitive;
 use ::engine::entities::{EntityData};
 use ::engine::objects::{ObjectData};
@@ -9,15 +9,15 @@ use ::engine::objects::{ObjectData};
 //change applied to a SINGLE location
 #[derive(Clone,Copy,Serialize,Deserialize,Debug)]
 pub enum Diff {
-    MoveEntityTo(EntityID,Point),
-    PlaceInside(EntityID,Point),
+    MoveEntityTo(EntityID,DPoint2),
+    PlaceInside(EntityID,DPoint2),
 }
 
 //PRIMITIVE
 #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub enum MsgToServer {
-    CreateEntity(EntityID,Point),
-    ControlMoveTo(LocationID,EntityID,Point),
+    CreateEntity(EntityID,DPoint2),
+    ControlMoveTo(LocationID,EntityID,DPoint2),
     ClientHasDisconnected,
     ClientLogin(BoundedString,BoundedString),
     RequestEntityData(EntityID),

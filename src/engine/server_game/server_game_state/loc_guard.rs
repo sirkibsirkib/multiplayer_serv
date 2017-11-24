@@ -2,6 +2,7 @@ use super::SaverLoader;
 use ::engine::game_state::locations::{Location,LocationPrimitive};
 use ::identity::{LocationID};
 use super::{Diff};
+use ::engine::primitives::*;
 // use super::super::network::messaging::MsgToClient;
 
 
@@ -61,7 +62,8 @@ impl LocationGuard {
                     .expect("prim ok but diffs not??");
                     //don't store diffs just yet. let loc_guard do that
                     //TODO move server_game_state into its own module
-                let loc = Location::new(prim);
+                let prim2 : LocationPrimitive = prim; //can't wait for type ascription
+                let loc : Location = prim2.generate_new();
                 let mut loc_guard = LocationGuard {
                     loc : loc,
                     diffs : vec![],

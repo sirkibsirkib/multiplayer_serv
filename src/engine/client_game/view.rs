@@ -1,4 +1,5 @@
-use super::{EntityID,WIDTH,HEIGHT,Location,Point,ScreenPoint,Dataset};
+use super::{EntityID,WIDTH,HEIGHT,Location,Dataset};
+use ::points::*;
 use super::piston_window::{PistonWindow,GenericEvent,clear,image,Transformed};
 use std::time::{Instant,Duration};
 use ::identity::{ObjectID};
@@ -20,6 +21,10 @@ impl ViewPerspective {
     };
 }
 
+lazy_static! {
+    static ref SCREEN_MIDDLE : CPoint2 = CPoint2::new(WIDTH as f32 / 2.0, HEIGHT as f32 / 2.0);
+}
+
 impl View {
 
     pub fn zoom_out(&mut self) {
@@ -39,33 +44,36 @@ impl View {
         }
     }
 
-    fn translate_screenpt_relative_to(&self, screen_pt : ScreenPoint, center : Point) -> Point {
+    fn translate_screenpt_relative_to(&self, screen_pt : CPoint2, center : DPoint2) -> DPoint2 {
         let prim = self.location.get_location_primitive();
         let meter_to_pixels : f64 = WIDTH / self.vp.screen_meter_width;
         let cells_to_pixels : f64 = prim.cell_to_meters * meter_to_pixels;
-        [
-            center[0] + (-0.5 + (screen_pt[0] - (WIDTH / 2.0)) / cells_to_pixels) as i16,
-            center[1] + (-0.5 + (screen_pt[1] - (HEIGHT / 2.0)) / cells_to_pixels) as i16,
-        ]
+        center + (screen_pt - *SCREEN_MIDDLE).div_scale(cells_to_pixels as f32).discrete()
+        // [
+        //     center[0] + (-0.5 + (screen_pt[0] - (WIDTH / 2.0)) / cells_to_pixels) as i16,
+        //     center[1] + (-0.5 + (screen_pt[1] - (HEIGHT / 2.0)) / cells_to_pixels) as i16,
+        // ]
     }
 
-    pub fn translate_screenpt(&self, screen_pt : ScreenPoint) -> Option<Point> {
+    pub fn translate_screenpt(&self, screen_pt : CPoint2) -> Option<DPoint2> {
         self.location.point_of(self.eid)
         .map(|center| self.translate_screenpt_relative_to(screen_pt, center))
     }
 
-    pub fn translate_pt_relative_to(&self, pt : Point, center : Point) -> ScreenPoint {
+    pub fn translate_pt_relative_to(&self, pt : DPoint2, center : DPoint2) -> CPoint2 {
         let prim = self.location.get_location_primitive();
-        let rel_pt = [pt[0] - center[0], pt[1] - center[1]];
+        // let rel_pt = [pt[0] - center[0], pt[1] - center[1]];
+        let rel_pt = pt - center;
         let meter_to_pixels : f64 = WIDTH / self.vp.screen_meter_width;
         let cells_to_pixels : f64 = prim.cell_to_meters * meter_to_pixels;
-        [
-            (WIDTH / 2.0) + (rel_pt[0] as f64 * cells_to_pixels),
-            (HEIGHT / 2.0) + (rel_pt[1] as f64 * cells_to_pixels),
-        ]
+        *SCREEN_MIDDLE + (rel_pt.continuous().scale(cells_to_pixels as f32))
+        // [
+        //     (WIDTH / 2.0) + (rel_pt[0] as f64 * cells_to_pixels),
+        //     (HEIGHT / 2.0) + (rel_pt[1] as f64 * cells_to_pixels),
+        // ]
     }
 
-    pub fn translate_pt(&self, pt : Point) -> Option<ScreenPoint> {
+    pub fn translate_pt(&self, pt : DPoint2) -> Option<CPoint2> {
         self.location.point_of(self.eid)
         .map(|center| self.translate_pt_relative_to(pt, center))
     }
@@ -106,8 +114,9 @@ impl View {
                         object_data.width_meters;
                         for screen_pt in pt_set.iter()
                         .map(|pt| self.translate_pt_relative_to(*pt, center))
-                        .filter(is_on_screen) {
-                            image(tex, c.transform.trans(screen_pt[0], screen_pt[1]).zoom(zoom), g);
+                        .filter(is_on_screen)
+                        {
+                            image(tex, c.transform.trans(screen_pt.x as f64, screen_pt.y as f64).zoom(zoom), g);
                         }
                     } else {
                         missing_oid_assets.push(*oid);
@@ -145,7 +154,7 @@ impl View {
                         let screen_pt = self.translate_pt_relative_to(*pt, center);
                         if is_on_screen(&screen_pt) {
                             image(tex, c.transform
-                                .trans(screen_pt[0], screen_pt[1]).zoom(zoom), g);
+                                .trans(screen_pt.x as f64, screen_pt.y as f64).zoom(zoom), g);
                         }
                     } else {
                         missing_eid_assets.push(*eid);
@@ -175,7 +184,8 @@ fn calc_zoom(sprite_pixels : u32, view_width_meters : f64, rendered_width_meters
     / (sprite_pixels as f64 * view_width_meters)
 }
 
-fn is_on_screen(sp : &ScreenPoint) -> bool {
-    sp[0] >= 0.0 && sp[0] < WIDTH
-    && sp[1] >= 0.0 && sp[1] < HEIGHT
+fn is_on_screen(sp : &CPoint2) -> bool {
+    true
+    // sp.x >= 0.0 && sp.x < WIDTH as f32
+    // && sp.y >= 0.0 && sp.y < HEIGHT as f32
 }

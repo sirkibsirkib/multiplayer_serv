@@ -4,6 +4,7 @@ mod server_game;
 pub mod entities;
 pub mod objects;
 pub mod procedural;
+pub mod primitives;
 // pub mod server_game_state;
 
 use std::sync::{Arc,Mutex};

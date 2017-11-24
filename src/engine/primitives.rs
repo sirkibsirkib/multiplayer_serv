@@ -7,38 +7,18 @@ pub trait AppliesDiff<T> {
 	fn apply_diff(&mut self, t : &T);
 }
 
-pub trait Primitive<T> {
-	fn generate_new(&self) -> T;
+pub trait Primitive<T> : Sized {
+	fn generate_new(self) -> T;
 }
 
 pub trait PrimitiveWithDiffs<T:AppliesDiff<D>,D> : Primitive<T> {
-	fn generate_diffed(&self, diffs: &Vec<D>) -> T {
+	fn generate_diffed(self, diffs: &Vec<D>) -> T {
 		let mut x = self.generate_new();
 		for d in diffs {
 			x.apply_diff(d);
 		}
 		x
 	}
-}
-
-pub trait SavableLoadable<'a> : PrimitiveWithDiffs<T,D> + Serializable + Deserializable<'a>
-where D : Serializable + Deserializable<'a> {
-    pub fn save_path(&self) -> &Path;
-    pub fn get_prim(&self) -> P where P : Primitive<Self>;
-    pub fn get_applied_diffs(&self) -> &Vec<D>;
-    pub fn save(&self) {
-        let mut prim_path = Path::new(&format!("{}_prim", self.save_path()));
-        let mut diffs_path = Path::new(&format!("{}_diffs", self.save_path()));
-        //save prim
-        //save diff_vec
-    }
-    pub fn load() -> T {
-        let mut prim_path = Path::new(&format!("{}_prim", self.save_path()));
-        let mut diffs_path = Path::new(&format!("{}_diffs", self.save_path()));
-        let prim = (); //TODO
-        let diffs = ();
-        prim.generate_diffed(diffs)
-    }
 }
 
 //////////////////////////////////////////////
@@ -62,13 +42,6 @@ EXAMPLE OF HOW TO USE:
     alter (A) in response to a (C) instance.
 
 5. implement PrimitiveWithDiffs{} (no functions needed! defaults OK)
-//// YOU CAN STOP HERE! (Primitive,PrimitiveWithDiffs) ready!
-
-6. implement SavableLoadable::{save_path,get_prim,get_applied_diffs} for (A.)
-    save_path -> an &Path of where to save/load (should be unique)
-    get_prim -> returns a (C) which represents a starting point of the (A)
-    get_applied_diffs -> return a vector of Diffs, representing steps from (C) to (A)
-//// YOU CAN STOP HERE! (Primitive,PrimitiveWithDiffs,SavableLoadable) ready!
 
 
 ////////////////////////// EXAMPLE //////////////////////////////////

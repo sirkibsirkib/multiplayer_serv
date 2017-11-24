@@ -5,6 +5,7 @@ use ::engine::game_state::locations::{Location,LocationPrimitive};
 use ::identity::{LocationID,SuperSeed};
 use super::{ClientID,Diff};
 use ::identity::ClientIDSet;
+use ::engine::primitives::*;
 
 
 pub const START_LOCATION_LID : LocationID = 0;
@@ -33,7 +34,7 @@ pub fn start_location() -> Location {
         cell_to_meters : 1.0, //in meters
         super_seed : START_LOCATION_LID as SuperSeed,
     };
-    Location::new(start_loc_prim)
+    start_loc_prim.generate_new()
 }
 
 

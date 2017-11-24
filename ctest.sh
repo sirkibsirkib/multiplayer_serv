@@ -1,0 +1,1 @@
+cargo run --release -- client -i "127.0.0.1" -p 2002

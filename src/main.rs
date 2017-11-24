@@ -1,6 +1,7 @@
 use std::sync::{Arc,Mutex};
 use std::thread;
 
+extern crate array_init;
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
@@ -21,6 +22,8 @@ mod engine;
 mod setup;
 mod saving;
 mod identity;
+mod utils;
+mod points;
 
 use identity::{ClientID};
 use network::{ProtectedQueue};
