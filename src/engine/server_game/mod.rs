@@ -1,6 +1,5 @@
 mod server_game_state;
 mod server_resources;
-mod world_loader;
 
 use super::game_state;
 use ::points::*;
@@ -113,7 +112,7 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                     if Some(&(eid,lid)) == server_data.cid_to_controlling.get(&d.cid) {
                         println!("Ok you may move that!");
                         let diff = Diff::MoveEntityTo(eid,pt);
-                        if sr.borrow_mut_location_loader().apply_diff_to(lid, diff,false).is_ok() {
+                        if sr.borrow_mut_location_loader().apply_diff_to(lid, diff,false,).is_ok() {
                             outgoing_updates.push(
                                 MsgToClientSet::Subset (
                                     MsgToClient::ApplyLocationDiff(lid,diff),
@@ -165,7 +164,7 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                         MsgToClientSet::Only(
                             MsgToClient::GiveWorldPrimitive(
                                 wid,
-                                sr.borrow_mut_world_loader().get_world_primitive_for(wid),
+                                sr.borrow_mut_world_prim_loader().get_world_primitive(wid),
                             ),
                             d.cid,
                         )

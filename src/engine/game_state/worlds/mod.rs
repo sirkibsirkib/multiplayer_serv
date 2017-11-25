@@ -6,11 +6,16 @@ pub mod zones;
 use ::utils::*;
 use ::utils::noise::*;
 use ::utils::funcs::*;
-mod location;
 use ::identity::*;
 
+
+lazy_static! {
+    pub static ref START_WORLD_PRIM : WorldPrimitive = WorldPrimitive::new(0, 0.4);
+    pub static ref START_WORLD : World = World::new(*START_WORLD_PRIM);
+}
+
 // use super::portals::UniquePoint;
-use self::location::LocationPrimitive;
+// use self::location::LocationPrimitive;
 use self::zones::{Zone,WorldLink};
 
 extern crate image;
@@ -123,7 +128,12 @@ pub struct World {
     exit_points: Vec<UniquePoint>,
 }
 
+
 impl World {
+
+    pub fn get_zone(&self, zone_id: usize) -> &Zone {
+        &self.zones[zone_id]
+    }
 
     pub fn get_size(&self) -> f32 {self.size}
 

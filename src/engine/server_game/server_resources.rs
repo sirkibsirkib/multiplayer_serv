@@ -1,12 +1,12 @@
 use ::std::time::{Duration};
 use ::engine::entities::{EntityDataSet};
 use ::engine::objects::{ObjectDataSet};
-use super::server_game_state::{LocationLoader};
+use super::server_game_state::{LocationLoader,WorldPrimLoader,WorldLoader};
 use std::collections::HashMap;
 use super::SaverLoader;
 use ::identity::*;
 
-use super::world_loader::WorldLoader;
+// use super::world_loader::WorldLoader;
 
 // subset of data that needs to be persistent between games. ie loaded and saved
 #[derive(Serialize,Deserialize,Debug)]
@@ -15,7 +15,7 @@ struct Persistent {
     cid_to_controlling : HashMap<ClientID, (EntityID,LocationID)>,
     entity_data_set : EntityDataSet,
     object_data_set : ObjectDataSet,
-    world_loader : WorldLoader,
+    world_prim_loader : WorldPrimLoader,
 }
 
 impl Persistent {
@@ -34,7 +34,7 @@ impl Persistent {
                     cid_to_controlling : HashMap::new(),
                     entity_data_set : EntityDataSet::new(),
                     object_data_set : ObjectDataSet::new(),
-                    world_loader : WorldLoader::new(),
+                    world_prim_loader : WorldPrimLoader::new(),
                 }
             }
         }
@@ -45,6 +45,7 @@ impl Persistent {
 pub struct ServerResources {
     persistent : Persistent,
     location_loader : LocationLoader,
+    world_loader : WorldLoader,
     sl : SaverLoader,
 }
 
@@ -54,6 +55,7 @@ impl ServerResources {
             persistent : Persistent::start_and_load(&sl),
             location_loader : LocationLoader::new(Duration::new(10,0), sl.clone()),
             sl : sl,
+            world_loader : WorldLoader::new(),
         }
     }
 
@@ -84,8 +86,8 @@ impl ServerResources {
     }
 
     #[inline]
-    pub fn borrow_world_loader(&self) -> &WorldLoader {
-        &self.persistent.world_loader
+    pub fn borrow_world_prim_loader(&self) -> &WorldPrimLoader {
+        &self.persistent.world_prim_loader
     }
 
     ///////////////////////////////////////////////////// MUT BORROWS
@@ -106,7 +108,7 @@ impl ServerResources {
     }
 
     #[inline]
-    pub fn borrow_mut_world_loader(&mut self) -> &mut WorldLoader {
-        &mut self.persistent.world_loader
+    pub fn borrow_mut_world_prim_loader(&mut self) -> &mut WorldPrimLoader {
+        &mut self.persistent.world_prim_loader
     }
 }

@@ -5,38 +5,43 @@ use ::points::DPoint2;
 use std::collections::{HashSet,HashMap};
 use ::network::messaging::Diff;
 use ::rand::{SeedableRng,Rng,Isaac64Rng};
+use super::worlds::zones::Zone;
 
 use ::identity::*;
 use ::utils::noise::*;
 use ::utils::traits::*;
 use ::identity::{SuperSeed,ObjectID};
+// use super::worlds::zones::Zone;
+use super::worlds::START_WORLD;
+
+
+lazy_static! {
+    pub static ref START_LOC_PRIM : LocationPrimitive = LocationPrimitive::new(0, 0, 1.0, 0);
+    pub static ref START_LOC : Location = Location::generate_new(*START_LOC_PRIM, *START_WORLD.get_zone(0));
+}
 
 
 #[derive(Serialize,Deserialize,Debug,Copy,Clone)]
 pub struct LocationPrimitive {
-    pub cells_wide : u16,
-    pub cells_high : u16,
+    // pub world_zone: Zone,
+    pub wid: WorldID,
+    pub zone_id: usize,
+    // pub cells_wide : u16,
+    // pub cells_high : u16,
     pub cell_to_meters : f64,
     pub super_seed : SuperSeed,
 }
 
-impl Primitive<Location> for LocationPrimitive {
-    fn generate_new(self) -> Location {
-        let mut rng = Isaac64Rng::from_seed(&[self.super_seed]);
-        let nf = NoiseField::generate(&mut rng, [0.2, 1.0], 2);
-        let objects = generate_objects(&nf, &self);
-        Location {
-            location_primitive : self,
-            entities : BidirMap::new(),
-            objects : objects,
-            nfield_height : nf,
-        }
+impl LocationPrimitive {
+    pub fn new(wid: WorldID, zone_id:usize, cell_to_meters : f64, super_seed: u64) -> LocationPrimitive {
+        LocationPrimitive{wid:wid, zone_id:zone_id, cell_to_meters:cell_to_meters, super_seed:super_seed}
     }
 }
 
 
 #[derive(Debug)]
 pub struct Location {
+    world_zone: Zone,
     location_primitive : LocationPrimitive,
     entities : BidirMap<EntityID, DPoint2>,
     objects : HashMap<ObjectID,HashSet<DPoint2>>,
@@ -49,12 +54,12 @@ impl AppliesDiff<Diff> for Location {
     }
 }
 
-fn generate_objects(nf : &NoiseField, loc_prim : &LocationPrimitive) -> HashMap<ObjectID,HashSet<DPoint2>> {
+fn generate_objects(nf : &NoiseField, loc_prim : &LocationPrimitive, cells_wide: i32, cells_high: i32,) -> HashMap<ObjectID,HashSet<DPoint2>> {
     let mut v = HashMap::new();
     let mut zero_set = HashSet::new();
-    for i in 0..loc_prim.cells_wide {
-        for j in 0..loc_prim.cells_high {
-            let pt : DPoint2 = DPoint2::new(i as i32, j as i32);
+    for i in 0..cells_wide {
+        for j in 0..cells_high {
+            let pt : DPoint2 = DPoint2::new(i, j);
             if nf.sample_2d(pt.continuous().scale(0.2)) > 0.01 {
                  zero_set.insert(pt);
             }
@@ -65,6 +70,19 @@ fn generate_objects(nf : &NoiseField, loc_prim : &LocationPrimitive) -> HashMap<
 }
 
 impl Location {
+    pub fn generate_new(lp: LocationPrimitive, world_zone: Zone) -> Location {
+        let mut rng = Isaac64Rng::from_seed(&[lp.super_seed]);
+        let nf = NoiseField::generate(&mut rng, [0.2, 1.0], 2);
+        let objects = generate_objects(&nf, &lp, world_zone.get_samples_per_row(), world_zone.get_samples_per_col());
+        Location {
+            world_zone: world_zone,
+            location_primitive : lp,
+            entities : BidirMap::new(),
+            objects : objects,
+            nfield_height : nf,
+        }
+    }
+
     pub fn get_location_primitive(&self) -> &LocationPrimitive {
         &self.location_primitive
     }
@@ -83,9 +101,17 @@ impl Location {
         return false;
     }
 
+    pub fn cells_wide(&self) -> i32 {
+        self.world_zone.get_samples_per_row()
+    }
+
+    pub fn cells_high(&self) -> i32 {
+        self.world_zone.get_samples_per_col()
+    }
+
     pub fn free_point(&self) -> Option<DPoint2> {
-        for i in 0..self.location_primitive.cells_wide as i32 {
-            for j in 0..self.location_primitive.cells_high as i32 {
+        for i in 0..self.cells_wide() {
+            for j in 0..self.cells_high() {
                 let p : DPoint2 = DPoint2::new(i,j);
                 if self.point_is_free(p) {
                     return Some(p)

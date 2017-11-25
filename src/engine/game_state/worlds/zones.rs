@@ -12,6 +12,7 @@ pub struct ZoneSample {
     mat: Material,
 }
 
+#[derive(Clone)]
 pub struct Zone {
     tl: CPoint2,
     br: CPoint2,

@@ -6,7 +6,10 @@ use ::identity::{LocationID,SuperSeed};
 use super::{ClientID,Diff};
 use ::identity::ClientIDSet;
 use ::utils::traits::*;
-
+use super::game_state::worlds::{World,WorldPrimitive};
+use ::identity::*;
+use ::noise::{Perlin,Seedable,NoiseModule};
+use ::rand::{thread_rng, Rng};
 
 pub const START_LOCATION_LID : LocationID = 0;
 
@@ -25,21 +28,21 @@ pub struct LocationLoader {
     last_backgrounded : HashMap<LocationID,Instant>,
 }
 
-pub fn start_location() -> Location {
-    let start_loc_prim = LocationPrimitive {
-        cells_wide : 50,
-        cells_high : 50,
-        cell_to_meters : 1.0, //in meters
-        super_seed : START_LOCATION_LID as SuperSeed,
-    };
-    start_loc_prim.generate_new()
-}
+// pub fn start_location() -> Location {
+//     let start_loc_prim = LocationPrimitive {
+//         cells_wide : 50,
+//         cells_high : 50,
+//         cell_to_meters : 1.0, //in meters
+//         super_seed : START_LOCATION_LID as SuperSeed,
+//     };
+//     start_loc_prim.generate_new()
+// }
 
 
 impl LocationLoader {
 
-    pub fn borrow_location(&mut self, lid : LocationID) -> &Location {
-        let loc_guard = if self.load_at_least_background(lid) {
+    pub fn borrow_location(&mut self, lid : LocationID, wl: &mut WorldLoader, wpl: &mut WorldPrimLoader) -> &Location {
+        let loc_guard = if self.load_at_least_background(lid, wl, wpl) {
             self.background.get_mut(&lid).expect("borrow be in BG")
         } else {
             self.foreground.get_mut(&lid).expect("borrow be in FG, ye")
@@ -47,12 +50,12 @@ impl LocationLoader {
         loc_guard.borrow_location()
     }
 
-    pub fn apply_diff_to(&mut self, lid : LocationID, diff : Diff, must_be_foreground : bool) -> Result<(),()> {
+    pub fn apply_diff_to(&mut self, lid : LocationID, diff : Diff, must_be_foreground : bool, wl: &mut WorldLoader, wpl: &mut WorldPrimLoader) -> Result<(),()> {
         let loc_guard = if must_be_foreground {
-            self.load_foreground(lid);
+            self.load_foreground(lid, wl, wpl);
             self.foreground.get_mut(&lid).expect("must be in FG")
         } else {
-            if self.load_at_least_background(lid) {
+            if self.load_at_least_background(lid, wl, wpl) {
                 self.background.get_mut(&lid).expect("must be in BG")
             } else {
                 self.foreground.get_mut(&lid).expect("must be in FG, ye")
@@ -86,7 +89,7 @@ impl LocationLoader {
         }
     }
 
-    pub fn client_subscribe(&mut self, cid : ClientID, lid : LocationID) {
+    pub fn client_subscribe(&mut self, cid : ClientID, lid : LocationID, wl: &mut WorldLoader, wpl: &mut WorldPrimLoader) {
         if let Some(set) = self.subscriptions.get_mut(&lid) {
             set.set(cid,true);
             return;
@@ -95,7 +98,7 @@ impl LocationLoader {
         x.set(cid,true);
         self.subscriptions.insert(lid, x);
         // 0->1 subs. gotta foreground!
-        self.load_foreground(lid);
+        self.load_foreground(lid, wl, wpl);
     }
 
     pub fn client_unsubscribe(&mut self, cid : ClientID, lid : LocationID) {
@@ -149,13 +152,13 @@ impl LocationLoader {
     if unloaded, loads to background.
     returns TRUE if its in background, false if its in FOREGROUND
     */
-    fn load_at_least_background(&mut self, lid : LocationID) -> bool {
+    fn load_at_least_background(&mut self, lid : LocationID, wl: &mut WorldLoader, wpl: &mut WorldPrimLoader) -> bool {
         if self.foreground.contains_key(& lid) {
             false
         } else {
             if ! self.foreground.contains_key(& lid) {
                 println!("fresh file load for loc with LID {:?}", &lid);
-                let loc_guard = LocationGuard::load_from(&self.sl, lid);
+                let loc_guard = LocationGuard::load_from(&self.sl, lid, wl, wpl);
                 if let Some(dur) = self.consume_time_since_last_sim(lid) {
                     //TODO alter loc_guard to represent `dur` time passing
                 }
@@ -170,10 +173,10 @@ impl LocationLoader {
     }
 
     //if not in foreground, loads to foreground
-    fn load_foreground(&mut self, lid : LocationID) {
+    fn load_foreground(&mut self, lid : LocationID, wl: &mut WorldLoader, wpl: &mut WorldPrimLoader) {
         if ! self.foreground.contains_key(& lid) {
             //it's not already loaded in foreground
-            self.load_at_least_background(lid);
+            self.load_at_least_background(lid, wl, wpl);
             let loc = self.background.remove(& lid).expect("IT should be in background!");
             // upgrade background --> foreground
             println!("Promoting background LID {:?}", &lid);
@@ -224,5 +227,53 @@ impl LocationLoader {
         Box::new(
             self.background.keys()
         )
+    }
+}
+
+
+
+#[derive(Serialize,Deserialize,Debug)]
+pub struct WorldPrimLoader {
+    world_primitives : HashMap<WorldID, WorldPrimitive>,
+}
+
+impl WorldPrimLoader {
+    pub fn new() -> WorldPrimLoader {
+        WorldPrimLoader {
+            world_primitives : HashMap::new(),
+        }
+    }
+
+    pub fn get_world_primitive(&mut self, wid: WorldID) -> WorldPrimitive {
+        if ! self.world_primitives.contains_key(&wid) {
+            println!("Lazily inventing a world. No biggie");
+            let mut rng = thread_rng();
+            self.world_primitives.insert(wid, WorldPrimitive::new(rng.gen(), rng.gen()));
+        }
+        println!("Returning a world");
+        *self.world_primitives.get(&wid)
+        .expect("I trusted you, you let me down")
+    }
+}
+
+pub struct WorldLoader {
+    worlds: HashMap<WorldID, World>,
+}
+
+impl WorldLoader {
+    pub fn new() -> WorldLoader {
+        WorldLoader {
+            worlds : HashMap::new(),
+        }
+    }
+
+    pub fn get_world(&mut self, wid: WorldID, wpl: &mut WorldPrimLoader) -> &World {
+        if self.worlds.contains_key(&wid) {
+            self.worlds.get(&wid).expect("roefl")
+        } else {
+            let wp = wpl.get_world_primitive(wid);
+            self.worlds.insert(wid, World::new(wp));
+            self.worlds.get(&wid).expect("lek")
+        }
     }
 }

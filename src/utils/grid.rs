@@ -1,5 +1,6 @@
 use ::points::DPoint2;
 
+#[derive(Clone)]
 pub struct TotalGrid<T> {
     elements: Vec<T>,
     width: i32,

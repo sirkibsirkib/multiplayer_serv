@@ -38,6 +38,10 @@ impl CacheManager {
         }
     }
 
+    pub fn get_world(&self, wid: WorldID) -> Option<&World> {
+        self.worlds.get(&wid)
+    }
+
     pub fn cache_world_primitive(&mut self, wid: WorldID, wp: WorldPrimitive) {
         if ! self.world_primitives.contains_key(&wid){
             self.world_primitives.insert(wid, wp);

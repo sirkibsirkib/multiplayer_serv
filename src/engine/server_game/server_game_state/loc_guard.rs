@@ -1,7 +1,9 @@
 use super::SaverLoader;
-use ::engine::game_state::locations::{Location,LocationPrimitive};
+use ::engine::game_state::locations::{Location,LocationPrimitive,START_LOC};
 use ::identity::{LocationID};
+use super::{WorldLoader,WorldPrimLoader};
 use super::{Diff};
+use super::super::super::game_state::worlds::zones::Zone;
 use ::utils::traits::*;
 // use super::super::network::messaging::MsgToClient;
 
@@ -55,7 +57,7 @@ impl LocationGuard {
         ).is_ok();
     }
 
-    pub fn load_from(sl : &SaverLoader, lid : LocationID) -> LocationGuard {
+    pub fn load_from(sl : &SaverLoader, lid : LocationID, world_loader: &mut WorldLoader, wpl: &mut WorldPrimLoader) -> LocationGuard {
         match sl.load_me(& location_primitive_save_path(lid)) {
             Ok(prim) => { //found prim
                 let diffs : Vec<Diff> = sl.load_me(& location_diffs_save_path(lid))
@@ -63,7 +65,10 @@ impl LocationGuard {
                     //don't store diffs just yet. let loc_guard do that
                     //TODO move server_game_state into its own module
                 let prim2 : LocationPrimitive = prim; //can't wait for type ascription
-                let loc : Location = prim2.generate_new();
+                let wid = prim2.wid;
+                let w = world_loader.get_world(wid, wpl);
+                let z : Zone = w.get_zone(prim2.zone_id).clone();
+                let loc : Location = Location::generate_new(prim2, z);
                 let mut loc_guard = LocationGuard {
                     loc : loc,
                     diffs : vec![],
@@ -78,7 +83,7 @@ impl LocationGuard {
                 if lid == super::START_LOCATION_LID { //ok must be a new game
                     println!("Generating start location!");
                     LocationGuard {
-                        loc : super::start_location(),
+                        loc : *START_LOC,
                         diffs : vec![],
                     }
                 } else { //nope! just missing savefile
