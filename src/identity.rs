@@ -50,6 +50,12 @@ impl ClientIDSet {
         }
     }
 
+    pub fn new_just_one(cid: ClientID) -> ClientIDSet {
+        let mut x = Self::new();
+        x.set(cid, true);
+        x
+    }
+
     #[inline]
     pub fn get(&self, element : ClientID) -> bool {
         ! self.is_empty() //checking this is lightning fast

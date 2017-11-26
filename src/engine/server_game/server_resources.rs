@@ -150,4 +150,15 @@ impl ServerResources {
             self.sl.save_with_key(wp, *wid);
         }
     }
+
+    pub fn unload_lid(&mut self, lid: LocationID) {
+        if let Some(lp) = self.location_prims.remove(&lid) {
+            self.sl.save_with_key(&lp, lid);
+        }
+        let _ = self.locations.remove(&lid);
+    }
+
+    pub fn unload_wid(&mut self, wid: WorldID) {
+
+    }
 }
