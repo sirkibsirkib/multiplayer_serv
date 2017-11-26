@@ -1,6 +1,8 @@
 mod server_game_state;
 mod server_resources;
+mod subscription_manager;
 
+use self::subscription_manager::SubscriptionManager;
 use super::game_state;
 use ::points::*;
 use super::entities::{EntityData};
@@ -45,6 +47,7 @@ pub fn game_loop(serv_in : Arc<ProtectedQueue<MsgFromClient>>,
                  sl : SaverLoader,
              ) {
     println!("Server game loop");
+    let mut subscription_manager = SubscriptionManager::new();
     let mut server_data : ServerData = match sl.load_without_key() {
         Ok(x) => {
             println!("Successfully loaded server_data");
@@ -87,6 +90,7 @@ pub fn game_loop(serv_in : Arc<ProtectedQueue<MsgFromClient>>,
             &userbase,
             &mut server_data,
             &mut sr,
+            &mut subscription_manager,
         );
 
         let since_update = update_start.elapsed();
@@ -105,6 +109,7 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                user_base : &Arc<Mutex<UserBase>>,
                server_data : &mut ServerData,
                sr : &mut ServerResources,
+               subscription_manager: &mut SubscriptionManager,
            ) {
     //comment
     let mut outgoing_updates : Vec<MsgToClientSet> = vec![];
@@ -117,13 +122,11 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                     if Some(&(eid,lid)) == server_data.cid_to_controlling.get(&d.cid) {
                         println!("Ok you may move that!");
                         let diff = Diff::MoveEntityTo(eid,pt);
-                        let x = sr.borrow_mut_world_loader();
-                        let y = sr.borrow_mut_world_prim_loader();
-                        if sr.borrow_mut_location_loader().apply_diff_to(lid, diff,false,x,y).is_ok() {
+                        if sr.get_mut_location(lid).apply_diff(diff).is_ok() {
                             outgoing_updates.push(
                                 MsgToClientSet::Subset (
                                     MsgToClient::ApplyLocationDiff(lid,diff),
-                                    sr.borrow_location_loader().get_subscriptions_for(lid),
+                                    subscription_manager.get_subs_for(lid),
                                 )
                             );
                         } else {
@@ -163,7 +166,7 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                     println!("Client {:?} has disconnected!", &d.cid);
                     user_base.lock().unwrap().logout(d.cid);
                     if let Some(&(_,old_lid)) = server_data.cid_to_controlling.get(&d.cid) {
-                        sr.borrow_mut_location_loader().client_unsubscribe(d.cid, old_lid);
+                        subscription_manager.unsubscribe(old_lid, d.cid);
                     }
                 },
                 MsgToServer::RequestWorldData(wid) => {
@@ -171,7 +174,7 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                         MsgToClientSet::Only(
                             MsgToClient::GiveWorldPrimitive(
                                 wid,
-                                sr.borrow_mut_world_prim_loader().get_world_primitive(wid),
+                                sr.get_world_primitive(wid).clone(),
                             ),
                             d.cid,
                         )
@@ -179,9 +182,7 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
 
                 },
                 MsgToServer::RequestLocationData(lid) => {
-                    let x = sr.borrow_mut_world_loader();
-                    let y = sr.borrow_mut_world_prim_loader();
-                    sr.borrow_mut_location_loader().client_subscribe(d.cid, lid,x,y);
+                    sr.borrow_mut_location_loader().client_subscribe(d.cid, lid);
                     if let Some(&(_,old_lid)) = server_data.cid_to_controlling.get(&d.cid) {
                         if lid != old_lid {
                             sr.borrow_mut_location_loader().client_unsubscribe(d.cid, old_lid);
