@@ -1,6 +1,7 @@
 use ::points::*;
 use ::rand::{SeedableRng,Rng,Isaac64Rng};
 use std::path::Path;
+use utils::traits::*;
 
 pub mod zones;
 use ::utils::*;
@@ -105,6 +106,12 @@ impl WorldPrimitive {
             super_seed: super_seed,
             star_energy: star_energy,
         }
+    }
+}
+
+impl KnowsSavePrefix for WorldPrimitive {
+    fn get_save_prefix() -> String {
+        "world_prim_".to_owned()
     }
 }
 

@@ -16,12 +16,10 @@ pub struct LocationGuard {
 }
 
 
-fn location_primitive_save_path(lid : LocationID) -> String {
-    format!("locations/loc_{}_prim.lel", lid)
-}
-
-fn location_diffs_save_path(lid : LocationID) -> String {
-    format!("locations/loc_{}_diffs.lel", lid)
+impl KnowsSavePrefix for Vec<Diff> {
+    fn get_save_prefix() -> String {
+        "loc_diffs".to_owned()
+    }
 }
 
 impl LocationGuard {
@@ -43,24 +41,21 @@ impl LocationGuard {
         }
     }
 
+
     pub fn save_to(&self, sl : &SaverLoader, lid : LocationID) {
         println!("saving loc lid:{:?} prim", lid);
-        sl.save_me(
-            & self.loc.get_location_primitive(),
-            & location_primitive_save_path(lid),
-        ).is_ok();
-
+        sl.save_with_key(self.loc.get_location_primitive(), lid).is_ok();
         println!("saving loc lid:{:?} diffs", lid);
-        sl.save_me(
+        sl.save_with_key(
             & self.diffs,
-            & location_diffs_save_path(lid),
+            lid,
         ).is_ok();
     }
 
     pub fn load_from(sl : &SaverLoader, lid : LocationID, world_loader: &mut WorldLoader, wpl: &mut WorldPrimLoader) -> LocationGuard {
-        match sl.load_me(& location_primitive_save_path(lid)) {
+        match sl.load_with_key(lid) {
             Ok(prim) => { //found prim
-                let diffs : Vec<Diff> = sl.load_me(& location_diffs_save_path(lid))
+                let diffs : Vec<Diff> = sl.load_with_key(lid)
                     .expect("prim ok but diffs not??");
                     //don't store diffs just yet. let loc_guard do that
                     //TODO move server_game_state into its own module

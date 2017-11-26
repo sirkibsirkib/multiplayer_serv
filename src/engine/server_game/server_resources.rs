@@ -1,124 +1,209 @@
-use ::std::time::{Duration};
-use ::engine::entities::{EntityDataSet};
-use ::engine::objects::{ObjectDataSet};
-use super::server_game_state::{LocationLoader,WorldPrimLoader,WorldLoader};
-use std::collections::HashMap;
-use super::SaverLoader;
 use ::identity::*;
+use network::messaging::MsgToClient;
+use rand::{Rng,Isaac64Rng};
+use std::sync::Arc;
+use network::messaging::MsgToServer;
+use network::ProtectedQueue;
+use std::time::{Instant,Duration};
+use std::collections::HashMap;
+use ::engine::game_state::locations::{Location,LocationPrimitive};
+use ::engine::game_state::worlds::{World,WorldPrimitive};
+use saving::SaverLoader;
 
-// use super::world_loader::WorldLoader;
 
-// subset of data that needs to be persistent between games. ie loaded and saved
-#[derive(Serialize,Deserialize,Debug)]
-struct Persistent {
-    next_eid : EntityID,
-    cid_to_controlling : HashMap<ClientID, (EntityID,LocationID)>,
-    entity_data_set : EntityDataSet,
-    object_data_set : ObjectDataSet,
-    world_prim_loader : WorldPrimLoader,
-}
-
-impl Persistent {
-    const SAVE_PATH : &'static str =  "./persistent_server_data.lel";
-
-    fn start_and_load(sl : &SaverLoader) -> Persistent {
-        match sl.load_me(Self::SAVE_PATH) {
-            Ok(x) => {
-                println!("Successfully loaded persistent server data");
-                x
-            },
-            Err(_) => {
-                println!("Failed to load persistent server data");
-                Persistent {
-                    next_eid : 0,
-                    cid_to_controlling : HashMap::new(),
-                    entity_data_set : EntityDataSet::new(),
-                    object_data_set : ObjectDataSet::new(),
-                    world_prim_loader : WorldPrimLoader::new(),
-                }
-            }
-        }
-    }
-}
-
-//struct for keeping track of RESOURCES. AIDs entity data, etc.
+#[derive(Debug)]
 pub struct ServerResources {
-    persistent : Persistent,
-    location_loader : LocationLoader,
-    world_loader : WorldLoader,
-    sl : SaverLoader,
+    locations: HashMap<LocationID, Location>,
+    location_prims: HashMap<LocationID, LocationPrimitive>,
+    worlds: HashMap<WorldID, World>,
+    world_prims: HashMap<WorldID, WorldPrimitive>,
+    sl: SaverLoader,
+    rng: Isaac64Rng,
 }
 
 impl ServerResources {
-    pub fn start_and_load(sl : SaverLoader) -> ServerResources {
+    pub fn new(sl: SaverLoader, rng: Isaac64Rng) -> ServerResources {
         ServerResources {
-            persistent : Persistent::start_and_load(&sl),
-            location_loader : LocationLoader::new(Duration::new(10,0), sl.clone()),
-            sl : sl,
-            world_loader : WorldLoader::new(),
+            locations: HashMap::new(),
+            location_prims: HashMap::new(),
+            worlds: HashMap::new(),
+            world_prims: HashMap::new(),
+            rng: rng,
+            sl: sl,
         }
     }
 
+    /*
+    1. hashmap load
+    2. file load
+    3. recursive ASSURE call
+       derive, save, return
+    */
 
-    pub fn save_all(&mut self) {
-        self.sl.save_me(&self.persistent, Persistent::SAVE_PATH)
-        .expect("couldn't save persistent server data!");
-        self.location_loader.unload_overdue_backgrounds();
-        self.location_loader.save_all_locations();
-        self.location_loader.print_status();
+    fn world_prim_populate(&mut self, wid: WorldID) {
+        if self.world_prims.contains_key(&wid) {
+            //.1
+            return
+        } 
+        if let Ok(wp) = self.sl.load_with_key::<WorldPrimitive,WorldID>(wid) {
+            //.2
+            self.world_prims.insert(wid, wp);
+            return
+        }
+        //make new!
+        let wp = WorldPrimitive::new(self.rng.gen(), self.rng.gen());
+        self.world_prims.insert(wid, wp);
+    }    
+
+    fn world_populate(&mut self, wid: WorldID) {
+        if self.worlds.contains_key(&wid) {
+            //.1
+            true
+        // } else if let Ok(w) = self.sl.load::<World,WorldID>(wid) {
+            // .2
+            // self.world.insert(wid, w);
+            // true
+            //No loading for world
+        } else if self.world_prim_populate(wid) {
+            //.3
+            let wp = self.world_prims.get(&wid).expect("you said..");
+            let w = World::new(wp.clone());
+            //cache locally
+            // let _ = self.sl.save::<World,WorldID>(&w, wid); //TODO can't save worlds?
+            self.worlds.insert(wid, w);
+            true
+        } else {
+            //.4
+            //.3 already sent a WorldPrim request
+            false
+        }
     }
 
-    /////////////////////////////////////////////////// BORROWS
-
-    #[inline]
-    pub fn borrow_location_loader(&self) -> &LocationLoader {
-        &self.location_loader
+    fn location_prim_populate(&mut self, lid: LocationID) {
+        if self.location_prims.contains_key(&lid) {
+            //.1
+            true
+        } else if let Ok(lp) = self.sl.load_with_key::<LocationPrimitive,LocationID>(lid) {
+            //.2
+            self.location_prims.insert(lid, lp);
+            true
+        } else {
+            //No .3 possible! no dependent type
+            //.4
+            let now = Instant::now();
+            if self.last_req_at + self.req_pause_time < now {
+                self.client_out.lock_push_notify (
+                    MsgToServer::RequestLocationData(lid)
+                )
+            }
+            false
+        }
     }
 
-    #[inline]
-    pub fn borrow_object_data_set(&self) -> &ObjectDataSet {
-        &self.persistent.object_data_set
+    fn location_populate(&mut self, lid: LocationID) {
+        if self.worlds.contains_key(&lid) {
+            //.1
+            true
+            //.2 not possible. worlds can't be loaded
+        }  else if self.location_prim_populate(lid) {
+            //.3
+            let lp : LocationPrimitive = self.location_prims.get(&lid).expect("you said..").clone();
+            let wid = lp.wid;
+            if self.world_populate(wid) {
+                let w = self.worlds.get(&wid).expect("you said..");
+                let world_zone = w.get_zone(lp.zone_id);
+                let l = Location::generate_new(lp.clone(), world_zone.clone());
+                self.locations.insert(lid, l);
+                true
+            } else {
+                false
+            }
+        } else {
+            //.4
+            //.3 already sent all requests
+            false
+        }
     }
 
-    #[inline]
-    pub fn borrow_entity_data_set(&self) -> &EntityDataSet {
-        &self.persistent.entity_data_set
+    ///////////////////////////// PUBLIC ///////////////////////
+
+    pub fn server_sent_data(&mut self, msg: MsgToClient) {
+        match msg {
+            MsgToClient::GiveLocationPrimitive(lid, lp) => {
+                self.location_prims.insert(lid, lp);
+            },
+            MsgToClient::GiveWorldPrimitive(wid, wp) => {
+                self.world_prims.insert(wid,wp);
+            },
+            m => {
+                println!("Client resources got unexpected msg! {:?}", m);
+            },
+        }
     }
 
-    #[inline]
-    pub fn borrow_world_prim_loader(&self) -> &WorldPrimLoader {
-        &self.persistent.world_prim_loader
+    pub fn get_world_primitive(&mut self, wid: WorldID) -> Result<&WorldPrimitive,()> {
+        if self.world_prim_populate(wid) {
+            Ok(self.world_prims.get(&wid).expect("kkfam"))
+        } else {
+            Err(())
+        }
     }
 
-    #[inline]
-    pub fn borrow_world_loader(&self) -> &WorldLoader {
-        &self.world_loader
+    pub fn get_world(&mut self, wid: WorldID) -> Result<&World,()> {
+        if self.world_populate(wid) {
+            Ok(self.worlds.get(&wid).expect("kkfam"))
+        } else {
+            Err(())
+        }
     }
 
-    ///////////////////////////////////////////////////// MUT BORROWS
-
-    #[inline]
-    pub fn borrow_mut_location_loader(&mut self) -> &mut LocationLoader {
-        &mut self.location_loader
+    pub fn get_location_primitive(&mut self, lid: LocationID) -> Result<&LocationPrimitive,()> {
+        if self.location_prim_populate(lid) {
+            Ok(self.location_prims.get(&lid).expect("kkfam"))
+        } else {
+            Err(())
+        }
     }
 
-    #[inline]
-    pub fn borrow_mut_object_data_set(&mut self) -> &mut ObjectDataSet {
-        &mut self.persistent.object_data_set
+    pub fn get_location(&mut self, lid: LocationID) -> Result<&Location,()> {
+        if self.location_populate(lid) {
+            Ok(self.locations.get(&lid).expect("kkfam"))
+        } else {
+            Err(())
+        }
     }
 
-    #[inline]
-    pub fn borrow_mut_entity_data_set(&mut self) -> &mut EntityDataSet {
-        &mut self.persistent.entity_data_set
+    ///////////////////////////////////////////////////////////////////////
+
+    pub fn get_mut_world_primitive(&mut self, wid: WorldID) -> Result<&mut WorldPrimitive,()> {
+        if self.world_prim_populate(wid) {
+            Ok(self.world_prims.get_mut(&wid).expect("kkfam"))
+        } else {
+            Err(())
+        }
     }
 
-    #[inline]
-    pub fn borrow_mut_world_prim_loader(&mut self) -> &mut WorldPrimLoader {
-        &mut self.persistent.world_prim_loader
+    pub fn get_mut_world(&mut self, wid: WorldID) -> Result<&mut World,()> {
+        if self.world_populate(wid) {
+            Ok(self.worlds.get_mut(&wid).expect("kkfam"))
+        } else {
+            Err(())
+        }
     }
 
-    #[inline]
-    pub fn borrow_mut_world_loader(&mut self) -> &mut WorldLoader {
-        &mut self.world_loader
+    pub fn get_mut_location_primitive(&mut self, lid: LocationID) -> Result<&mut LocationPrimitive,()> {
+        if self.location_prim_populate(lid) {
+            Ok(self.location_prims.get_mut(&lid).expect("kkfam"))
+        } else {
+            Err(())
+        }
+    }
+
+    pub fn get_mut_location(&mut self, lid: LocationID) -> Result<&mut Location,()> {
+        if self.location_populate(lid) {
+            Ok(self.locations.get_mut(&lid).expect("kkfam"))
+        } else {
+            Err(())
+        }
     }
 }

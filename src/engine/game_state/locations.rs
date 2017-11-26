@@ -21,9 +21,6 @@ lazy_static! {
 }
 
 
-impl KnowsSavePrefix for LocationPrimitive {
-    fn get_save_prefix() -> String {"location_prim".to_owned()}
-}
 
 #[derive(Serialize,Deserialize,Debug,Copy,Clone)]
 pub struct LocationPrimitive {
@@ -34,6 +31,12 @@ pub struct LocationPrimitive {
     // pub cells_high : u16,
     pub cell_to_meters : f64,
     pub super_seed : SuperSeed,
+}
+
+impl KnowsSavePrefix for LocationPrimitive {
+    fn get_save_prefix() -> String {
+        "loc_prim".to_owned()
+    }
 }
 
 impl LocationPrimitive {

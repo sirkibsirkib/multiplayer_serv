@@ -49,7 +49,7 @@ impl ClientResources {
 		if self.world_prims.contains_key(&wid) {
 			//.1
 			true
-		} else if let Ok(wp) = self.sl.load::<WorldPrimitive,WorldID>(wid) {
+		} else if let Ok(wp) = self.sl.load_with_key::<WorldPrimitive,WorldID>(wid) {
 			//.2
 			self.world_prims.insert(wid, wp);
 			true
@@ -67,19 +67,20 @@ impl ClientResources {
 	}
 
 	fn fast_world_populate(&mut self, wid: WorldID) -> bool {
-		if self.world.contains_key(&wid) {
+		if self.worlds.contains_key(&wid) {
 			//.1
 			true
-		} else if let Ok(w) = self.sl.load::<World,WorldID>(wid) {
-			//.2
-			self.world.insert(wid, w);
-			true
+		// } else if let Ok(w) = self.sl.load::<World,WorldID>(wid) {
+			// .2
+			// self.world.insert(wid, w);
+			// true
+			//No loading for world
 		} else if self.fast_world_prim_populate(wid) {
 			//.3
-			let wp = self.world_prims.get(wid).expect("you said..");
-			let w = World::new(wp);
+			let wp = self.world_prims.get(&wid).expect("you said..");
+			let w = World::new(wp.clone());
 			//cache locally
-			let _ = self.sl.save::<World,WorldID>(&w, wid);
+			// let _ = self.sl.save::<World,WorldID>(&w, wid); //TODO can't save worlds?
 			self.worlds.insert(wid, w);
 			true
 		} else {
@@ -93,7 +94,7 @@ impl ClientResources {
 		if self.location_prims.contains_key(&lid) {
 			//.1
 			true
-		} else if let Ok(lp) = self.sl.load::<LocationPrimitive,LocationID>(lid) {
+		} else if let Ok(lp) = self.sl.load_with_key::<LocationPrimitive,LocationID>(lid) {
 			//.2
 			self.location_prims.insert(lid, lp);
 			true
@@ -111,18 +112,18 @@ impl ClientResources {
 	}
 
 	fn fast_location_populate(&mut self, lid: LocationID) -> bool {
-		if self.world.contains_key(&lid) {
+		if self.worlds.contains_key(&lid) {
 			//.1
 			true
 			//.2 not possible. worlds can't be loaded
 		}  else if self.fast_location_prim_populate(lid) {
 			//.3
-			let lp = self.location_prims.get(lid).expect("you said..");
+			let lp : LocationPrimitive = self.location_prims.get(&lid).expect("you said..").clone();
 			let wid = lp.wid;
 			if self.fast_world_populate(wid) {
-				let w = self.worlds.get(wid).expect("you said..");
+				let w = self.worlds.get(&wid).expect("you said..");
 				let world_zone = w.get_zone(lp.zone_id);
-				let l = Location::generate_new(lp, world_zone);
+				let l = Location::generate_new(lp.clone(), world_zone.clone());
 				self.locations.insert(lid, l);
 				true
 			} else {
@@ -153,7 +154,7 @@ impl ClientResources {
 
 	pub fn get_world_primitive(&mut self, wid: WorldID) -> Result<&WorldPrimitive,()> {
 		if self.fast_world_prim_populate(wid) {
-			Ok(self.world_prims.get(wid).expect("kkfam"))
+			Ok(self.world_prims.get(&wid).expect("kkfam"))
 		} else {
 			Err(())
 		}
@@ -161,7 +162,7 @@ impl ClientResources {
 
 	pub fn get_world(&mut self, wid: WorldID) -> Result<&World,()> {
 		if self.fast_world_populate(wid) {
-			Ok(self.worlds.get(wid).expect("kkfam"))
+			Ok(self.worlds.get(&wid).expect("kkfam"))
 		} else {
 			Err(())
 		}
@@ -169,7 +170,7 @@ impl ClientResources {
 
 	pub fn get_location_primitive(&mut self, lid: LocationID) -> Result<&LocationPrimitive,()> {
 		if self.fast_location_prim_populate(lid) {
-			Ok(self.location_prims.get(lid).expect("kkfam"))
+			Ok(self.location_prims.get(&lid).expect("kkfam"))
 		} else {
 			Err(())
 		}
@@ -177,7 +178,7 @@ impl ClientResources {
 
 	pub fn get_location(&mut self, lid: LocationID) -> Result<&Location,()> {
 		if self.fast_location_populate(lid) {
-			Ok(self.locations.get(lid).expect("kkfam"))
+			Ok(self.locations.get(&lid).expect("kkfam"))
 		} else {
 			Err(())
 		}
@@ -187,7 +188,7 @@ impl ClientResources {
 
 	pub fn get_mut_world_primitive(&mut self, wid: WorldID) -> Result<&mut WorldPrimitive,()> {
 		if self.fast_world_prim_populate(wid) {
-			Ok(self.world_prims.get_mut(wid).expect("kkfam"))
+			Ok(self.world_prims.get_mut(&wid).expect("kkfam"))
 		} else {
 			Err(())
 		}
@@ -195,7 +196,7 @@ impl ClientResources {
 
 	pub fn get_mut_world(&mut self, wid: WorldID) -> Result<&mut World,()> {
 		if self.fast_world_populate(wid) {
-			Ok(self.worlds.get_mut(wid).expect("kkfam"))
+			Ok(self.worlds.get_mut(&wid).expect("kkfam"))
 		} else {
 			Err(())
 		}
@@ -203,7 +204,7 @@ impl ClientResources {
 
 	pub fn get_mut_location_primitive(&mut self, lid: LocationID) -> Result<&mut LocationPrimitive,()> {
 		if self.fast_location_prim_populate(lid) {
-			Ok(self.location_prims.get_mut(lid).expect("kkfam"))
+			Ok(self.location_prims.get_mut(&lid).expect("kkfam"))
 		} else {
 			Err(())
 		}
@@ -211,7 +212,7 @@ impl ClientResources {
 
 	pub fn get_mut_location(&mut self, lid: LocationID) -> Result<&mut Location,()> {
 		if self.fast_location_populate(lid) {
-			Ok(self.locations.get_mut(lid).expect("kkfam"))
+			Ok(self.locations.get_mut(&lid).expect("kkfam"))
 		} else {
 			Err(())
 		}

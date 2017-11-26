@@ -127,7 +127,7 @@ fn main() {
 
 
             let sl = SaverLoader::new(&config.save_dir().expect("NO SL DIR"));
-            let sl2 = sl.clone();
+            let sl2 = sl.subdir_saver_loader("client_sl_dir/");
 
             let mut raw_userbase = load_user_base(&sl);
 
@@ -147,13 +147,13 @@ fn main() {
 }
 
 fn load_user_base(sl : &SaverLoader) -> UserBase {
-    if let Ok(mut loaded) = sl.load_me::<UserBase>(UserBase::SAVE_PATH) {
+    if let Ok(mut loaded) = sl.load_without_key::<UserBase>() {
         println!("loaded userbase file! {:?}", &loaded);
         loaded.log_everyone_out();
         loaded
     } else {
         let u = UserBase::new();
-        sl.save_me(&u, UserBase::SAVE_PATH).expect("Save went bad!");
+        sl.save_without_key(&u).expect("Save went bad!");
         println!("Created fresh userbase save");
         u
     }

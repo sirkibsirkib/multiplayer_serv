@@ -3,7 +3,7 @@ use ::points::*;
 
 use std::fmt::{Debug,Formatter};
 use std::collections::HashSet;
-use utils::traits::UniqueSaveSuffix;
+use utils::traits::KnowsSaveSuffix;
 
 //TODO make into unit structs
 
@@ -18,8 +18,8 @@ pub type CompleteOID = (WorldID,ObjectID);
 pub type WorldID = u32;
 
 
-impl UniqueSaveSuffix for LocationID {
-    fn suffix_from(&self) -> String {
+impl KnowsSaveSuffix for LocationID {
+    fn get_save_suffix(&self) -> String {
         format!("_{}", self)
     }
 }
@@ -27,7 +27,7 @@ impl UniqueSaveSuffix for LocationID {
 pub type SuperSeed = u64;
 
 //////////////////////////////////////////////////////////////////////////////////
-#[derive(Debug,Copy,Clone)]
+#[derive(Debug,Copy,Clone,Serialize,Deserialize)]
 pub struct UniquePoint {
     lid: LocationID,
     c_pt: CPoint2

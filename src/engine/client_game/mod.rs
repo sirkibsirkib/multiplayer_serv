@@ -7,12 +7,12 @@ extern crate image;
 
 mod view;
 mod asset_manager;
-mod cache_manager;
+// mod cache_manager;
 mod client_resources;
 
 use self::client_resources::ClientResources;
 
-use self::cache_manager::CacheManager;
+// use self::cache_manager::CacheManager;
 // use std::collections::HashMap;
 use self::asset_manager::{AssetManager,HardcodedAssets};
 use self::view::{View,ViewPerspective};
@@ -67,7 +67,7 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
                  sl: SaverLoader,
              ) {
 
-    let client_resources = ClientResources::new(sl.clone, client_out.clone(), Duration::from_millis(400));
+    let client_resources = ClientResources::new(sl, client_out.clone(), Duration::from_millis(400));
     let mut window = init_window();
     let mut my_data = MyData {
         view: None,
@@ -102,11 +102,13 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
         if let Some(_) = e.render_args() {
             window.draw_2d(&e, | _ , graphics| clear([0.0; 4], graphics));
             if let Some(ref v) = my_data.view {
-                View::clear_window(&e, &mut window);
-                if my_data.viewing_map {
-                    v.render_world(&e, &mut window, &mut dataset, my_data.wid, &hardcoded_assets, my_data.longitude);
-                } else {
-                    v.render_location(&e, &mut window, &mut dataset);
+                if let Ok(loc) = client_resources.get_location(v.lid) {
+                    View::clear_window(&e, &mut window);
+                    if my_data.viewing_map {
+                        v.render_world(&e, &mut window, &mut dataset, my_data.wid, &hardcoded_assets, my_data.longitude);
+                    } else {
+                        v.render_location(&e, &mut window, &mut dataset, loc);
+                    }
                 }
             }
         }
@@ -133,9 +135,10 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
             if button == Button::Mouse(MouseButton::Left) {
                 if_chain! {
                     if let Some(ref mut v) = my_data.view;
+                    if let Ok(loc) = client_resources.get_location(v.lid);
                     if let Some(m) = mouse_at;
                     if let Some((eid, _)) = my_data.controlling;
-                    if let Some(pt) = v.translate_screenpt(CPoint2::new(m[0] as f32, m[1] as f32));
+                    if let Some(pt) = v.translate_screenpt(CPoint2::new(m[0] as f32, m[1] as f32), loc);
                     then {
                         dataset.outgoing_request_cache.push(
                             MsgToServer::ControlMoveTo(my_data.controlling.unwrap().1, eid, pt)
@@ -164,7 +167,8 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
                 &client_out,
                 &mut my_data,
                 &mut dataset,
-                &mut cache_manager,
+                // &mut cache_manager,
+                &mut client_resources,
             );
         }
     }
@@ -175,7 +179,8 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
                // outgoing_update_requests : &mut Vec<MsgToServer>,
                my_data : &mut MyData,
                dataset : &mut Dataset,
-               cache_manager : &mut CacheManager,
+               // cache_manager : &mut CacheManager,
+               client_resources: &mut ClientResources,
                // entity_data : &mut EntityDataSet,
               ) {
     //comment
@@ -185,8 +190,9 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
             use MsgToClient::*;
             match d {
                 GiveWorldPrimitive(wid, world_prim) => {
-                    cache_manager.cache_world_primitive(wid, world_prim);
-                    cache_manager.ensure_map_file_exists_for(wid, &dataset.asset_manager);
+                    client_resources.server_sent_data(GiveWorldPrimitive(wid,world_prim))
+                    // cache_manager.cache_world_primitive(wid, world_prim);
+                    // cache_manager.ensure_map_file_exists_for(wid, &dataset.asset_manager);
                 },
                 GiveObjectData(oid,data) => {
                     dataset.object_dataset.insert(oid,data);
@@ -198,37 +204,16 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
                     if let Some(ref mut view) = my_data.view {
                         if let Some((c_eid, c_lid)) = my_data.controlling {
                             if c_lid == lid {
-                                view.get_location_mut().apply_diff(diff);
+                                if let Ok(loc) = client_resources.get_mut_location(view.lid) {
+                                    loc.apply_diff(diff);
+                                }
                             }
                         }
                     }
                 },
                 GiveLocationPrimitive(lid, loc_prim) => {
-                    let wid = loc_prim.wid;
-                    println!("OK got loc prim from serv");
-                    if cache_manager.world_is_cached(wid) {
-                        let w = cache_manager.get_world(wid).expect("wtf cachebro");
-                        if let Some((c_eid, c_lid)) = my_data.controlling {
-                            let zone = w.get_zone(loc_prim.zone_id).clone();
-                            if c_lid == lid {
-                                println!("... and I am expecting it");
-                                my_data.view = Some(View::new(
-                                    my_data.controlling.unwrap().0,
-                                    Location::generate_new(loc_prim, zone),
-                                    // Location::new(loc_prim),
-                                    ViewPerspective::DEFAULT_SURFACE,
-                                ));
-                            }
-                        }
-                    } else {
-                        dataset.outgoing_request_cache.push(
-                            MsgToServer::RequestWorldData(wid)
-                        );
-                        //resend this plz
-                        dataset.outgoing_request_cache.push(
-                            MsgToServer::RequestLocationData(lid)
-                        );
-                    }
+                    client_resources.server_sent_data(GiveLocationPrimitive(lid, loc_prim));
+                    //TODO 
                 },
                 GiveControlling(eid, lid) => {
                     let mut going_to_new_loc = false;

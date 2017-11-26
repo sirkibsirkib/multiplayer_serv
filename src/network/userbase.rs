@@ -7,6 +7,7 @@ use std::fs;
 use std::io::prelude::Read;
 // use std::io;
 use std::path::Path;
+use utils::traits::*;
 
 #[derive(Serialize,Deserialize,Debug)]
 pub struct UserBase {
@@ -16,6 +17,12 @@ pub struct UserBase {
     first_time_setup_pending : HashSet<ClientID>,
     logged_in : HashSet<ClientID>,
     next_avail_cid : ClientID,
+}
+
+impl KnowsSavePrefix for UserBase {
+    fn get_save_prefix() -> String {
+        "userbase".to_owned()
+    }
 }
 
 impl UserBase {

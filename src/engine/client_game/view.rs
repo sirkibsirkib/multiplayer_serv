@@ -9,8 +9,8 @@ use super::piston_window::{G2dTexture,Texture,TextureSettings,Flip};
 use super::piston_window::ImageSize;
 
 pub struct View {
-    eid : EntityID,
-    location : Location,
+    pub eid : EntityID,
+    pub lid: LocationID,
     vp : ViewPerspective,
 }
 
@@ -39,16 +39,16 @@ impl View {
     }
 
     // suggest vp == ViewPerspective::default_surface()
-    pub fn new(eid : EntityID, location : Location, vp : ViewPerspective) -> View {
+    pub fn new(eid : EntityID, lid: LocationID, vp : ViewPerspective) -> View {
         View {
             eid : eid,
-            location : location,
+            lid: lid,
             vp : vp,
         }
     }
 
-    fn translate_screenpt_relative_to(&self, screen_pt : CPoint2, center : DPoint2) -> DPoint2 {
-        let prim = self.location.get_location_primitive();
+    fn translate_screenpt_relative_to(&self, screen_pt : CPoint2, center : DPoint2, loc: &Location) -> DPoint2 {
+        let prim = loc.get_location_primitive();
         let meter_to_pixels : f64 = WIDTH / self.vp.screen_meter_width;
         let cells_to_pixels : f64 = prim.cell_to_meters * meter_to_pixels;
         center + (screen_pt - *SCREEN_MIDDLE).div_scale(cells_to_pixels as f32).discrete()
@@ -58,13 +58,13 @@ impl View {
         // ]
     }
 
-    pub fn translate_screenpt(&self, screen_pt : CPoint2) -> Option<DPoint2> {
-        self.location.point_of(self.eid)
-        .map(|center| self.translate_screenpt_relative_to(screen_pt, center))
+    pub fn translate_screenpt(&self, screen_pt : CPoint2, loc: &Location) -> Option<DPoint2> {
+        loc.point_of(self.eid)
+        .map(|center| self.translate_screenpt_relative_to(screen_pt, center, loc))
     }
 
-    pub fn translate_pt_relative_to(&self, pt : DPoint2, center : DPoint2) -> CPoint2 {
-        let prim = self.location.get_location_primitive();
+    pub fn translate_pt_relative_to(&self, pt : DPoint2, center : DPoint2, loc: &Location) -> CPoint2 {
+        let prim = loc.get_location_primitive();
         // let rel_pt = [pt[0] - center[0], pt[1] - center[1]];
         let rel_pt = pt - center;
         let meter_to_pixels : f64 = WIDTH / self.vp.screen_meter_width;
@@ -76,19 +76,9 @@ impl View {
         // ]
     }
 
-    pub fn translate_pt(&self, pt : DPoint2) -> Option<CPoint2> {
-        self.location.point_of(self.eid)
-        .map(|center| self.translate_pt_relative_to(pt, center))
-    }
-
-    #[inline]
-    pub fn get_location(&self) -> &Location {
-        &self.location
-    }
-
-    #[inline]
-    pub fn get_location_mut(&mut self) -> &mut Location {
-        &mut self.location
+    pub fn translate_pt(&self, pt : DPoint2, loc: &Location) -> Option<CPoint2> {
+        loc.point_of(self.eid)
+        .map(|center| self.translate_pt_relative_to(pt, center, loc))
     }
 
     pub fn render_location_objects<E>(
@@ -96,11 +86,12 @@ impl View {
                        event : &E,
                        window : &mut PistonWindow,
                        dataset : &mut Dataset,
+                       loc: &Location,
     ) where E : GenericEvent {
-        if let Some(center) = self.location.point_of(self.eid) {
+        if let Some(center) = loc.point_of(self.eid) {
             let mut missing_oid_assets : Vec<ObjectID> = vec![];
             window.draw_2d(event, |c, g| {
-                for (oid, pt_set) in self.get_location().object_iterator() {
+                for (oid, pt_set) in loc.object_iterator() {
                     if missing_oid_assets.contains(&oid) {continue}
                     if let Some(object_data) = dataset.object_dataset.get(*oid) {
                         let zoom = calc_zoom(
@@ -111,7 +102,7 @@ impl View {
                         let tex = dataset.asset_manager.get_texture_for(object_data.aid);
                         object_data.width_meters;
                         for screen_pt in pt_set.iter()
-                        .map(|pt| self.translate_pt_relative_to(*pt, center))
+                        .map(|pt| self.translate_pt_relative_to(*pt, center, loc))
                         .filter(is_on_screen)
                         {
                             image(tex, c.transform.trans(screen_pt.x as f64, screen_pt.y as f64).zoom(zoom), g);
@@ -141,11 +132,12 @@ impl View {
                        event : &E,
                        window : &mut PistonWindow,
                        dataset : &mut Dataset,
+                       loc: &Location,
     ) where E : GenericEvent {
-        if let Some(center) = self.location.point_of(self.eid) {
+        if let Some(center) = loc.point_of(self.eid) {
             let mut missing_eid_assets : Vec<ObjectID> = vec![];
             window.draw_2d(event, |c, g| {
-                for (eid, pt) in self.get_location().entity_iterator() {
+                for (eid, pt) in loc.entity_iterator() {
                     if missing_eid_assets.contains(&eid) {
                         continue;
                     }
@@ -156,7 +148,7 @@ impl View {
                             entity_data.width_meters,
                         );
                         let tex = dataset.asset_manager.get_texture_for(entity_data.aid);
-                        let screen_pt = self.translate_pt_relative_to(*pt, center);
+                        let screen_pt = self.translate_pt_relative_to(*pt, center, loc);
                         if is_on_screen(&screen_pt) {
                             image(tex, c.transform
                                 .trans(screen_pt.x as f64, screen_pt.y as f64).zoom(zoom), g);
@@ -190,9 +182,10 @@ impl View {
                        event : &E,
                        window : &mut PistonWindow,
                        dataset : &mut Dataset,
+                       loc: &Location,
     ) where E : GenericEvent {
-        self.render_location_objects(event, window, dataset);
-        self.render_location_entities(event, window, dataset);
+        self.render_location_objects(event, window, dataset, loc);
+        self.render_location_entities(event, window, dataset, loc);
     }
 
     pub fn render_world<E>(

@@ -24,9 +24,18 @@ impl SaverLoader {
             save_dir : Box::new(p.to_path_buf())
         };
         me.ensure_folder_exists("./");
-        me.ensure_folder_exists("locations/");
+        // me.ensure_folder_exists("locations/");
         me.ensure_folder_exists(UserBase::REGISTER_PATH);
         me
+    }
+
+    pub fn subdir_saver_loader(&self, folder: &str) -> SaverLoader {
+        self.ensure_folder_exists(folder);
+        let mut pb = self.save_dir.clone();
+        pb.push(folder);
+        SaverLoader {
+            save_dir: pb,
+        }
     }
 
     pub fn relative_path<'a>(&self, rel : &'a str) -> PathBuf {
@@ -46,7 +55,7 @@ impl SaverLoader {
         }
     }
 
-    fn save_me<X>(&self, x : &X, file : &str) -> Result<(), io::Error>
+    fn save_specific<X>(&self, x : &X, file : &str) -> Result<(), io::Error>
     where X : Serialize + Debug {
         let absolute_path = self.save_dir.join(Path::new(file));
         let mut f = File::create(absolute_path)?;
@@ -57,13 +66,18 @@ impl SaverLoader {
         Ok(())
     }
 
-    pub fn save<X,K>(&self, x: &X, key: K) -> Result<(),io::Error>
-    where X: Serialize + Debug + KnowsSavePrefix,
-          K: KnowsSaveSuffix {
-        self.save_me(x, &format!("{}{}", X::prefix_from(), key.suffix_from()))
+    pub fn save_without_key<X>(&self, x: &X) -> Result<(),io::Error>
+    where X: Serialize + Debug + KnowsSavePrefix {
+        self.save_specific(x, &X::get_save_prefix())
     }
 
-    fn load_me<X>(&self, file : &str) -> Result<X, io::Error>
+    pub fn save_with_key<X,K>(&self, x: &X, key: K) -> Result<(),io::Error>
+    where X: Serialize + Debug + KnowsSavePrefix,
+          K: KnowsSaveSuffix {
+        self.save_specific(x, &format!("{}{}", X::get_save_prefix(), key.get_save_suffix()))
+    }
+
+    fn load_specific<X>(&self, file : &str) -> Result<X, io::Error>
     where X : DeserializeOwned {
         let absolute_path = self.save_dir.join(Path::new(file));
         let mut f = File::open(absolute_path)?;
@@ -77,9 +91,14 @@ impl SaverLoader {
         }
     }
 
-    pub fn load<X,K>(&self, key: K) -> Result<X,io::Error>
+    pub fn load_without_key<X>(&self) -> Result<X,io::Error>
+    where X: DeserializeOwned + KnowsSavePrefix {
+        self.load_specific(&X::get_save_prefix())
+    }
+
+    pub fn load_with_key<X,K>(&self, key: K) -> Result<X,io::Error>
     where X: DeserializeOwned + KnowsSavePrefix,
           K: KnowsSaveSuffix {
-        self.load_me(&format!("{}{}", X::prefix_from(), key.suffix_from()))
+        self.load_specific(&format!("{}{}", X::get_save_prefix(), key.get_save_suffix()))
     }
 }

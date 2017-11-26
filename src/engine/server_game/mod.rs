@@ -12,6 +12,7 @@ use std::sync::{Arc,Mutex};
 use std::time;
 use std::collections::HashMap;
 
+use utils::traits::*;
 use super::objects::{ObjectData};
 use ::network::messaging::{MsgToClientSet,MsgFromClient,MsgToClient,MsgToServer,Diff};
 use ::network::{ProtectedQueue};
@@ -25,9 +26,12 @@ struct ServerData {
     next_eid : EntityID,
     cid_to_controlling : HashMap<ClientID, (EntityID,LocationID)>,
 }
-
+impl KnowsSavePrefix for ServerData {
+    fn get_save_prefix() -> String {
+        "server_data".to_owned()
+    }
+}
 impl ServerData {
-    pub const SAVE_PATH : &'static str = "./server_data.lel";
     fn use_next_eid(&mut self) -> EntityID {
         self.next_eid += 1;
         self.next_eid - 1
@@ -40,7 +44,7 @@ pub fn game_loop(serv_in : Arc<ProtectedQueue<MsgFromClient>>,
                  sl : SaverLoader,
              ) {
     println!("Server game loop");
-    let mut server_data : ServerData = match sl.load_me(ServerData::SAVE_PATH) {
+    let mut server_data : ServerData = match sl.load_without_key() {
         Ok(x) => {
             println!("Successfully loaded server_data");
             x
@@ -70,8 +74,8 @@ pub fn game_loop(serv_in : Arc<ProtectedQueue<MsgFromClient>>,
 
             println!("SAVING FOR TESTING PURPOSES");
             let u : &UserBase = &userbase.lock().unwrap();
-            sl.save_me(&server_data, ServerData::SAVE_PATH).expect("couldn't save server data!");
-            sl.save_me(u, UserBase::SAVE_PATH).expect("couldn't save user base!");
+            sl.save_without_key(&server_data).expect("couldn't save server data!");
+            sl.save_without_key(u).expect("couldn't save user base!");
             sr.save_all();
         }
 
