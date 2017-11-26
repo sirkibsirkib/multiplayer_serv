@@ -138,6 +138,10 @@ pub struct World {
 
 impl World {
 
+    pub fn num_zones(&self) -> usize {
+        self.zones.len()
+    }
+
     pub fn get_zone(&self, zone_id: usize) -> &Zone {
         &self.zones[zone_id]
     }

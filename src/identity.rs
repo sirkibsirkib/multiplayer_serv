@@ -16,6 +16,7 @@ pub type AssetID = u16;
 pub type ObjectID = u64;
 pub type CompleteOID = (WorldID,ObjectID);
 pub type WorldID = u32;
+pub type ZoneID = usize;
 
 
 impl KnowsSaveSuffix for LocationID {
@@ -27,7 +28,7 @@ impl KnowsSaveSuffix for LocationID {
 pub type SuperSeed = u64;
 
 //////////////////////////////////////////////////////////////////////////////////
-#[derive(Debug,Copy,Clone,Serialize,Deserialize)]
+#[derive(Debug,Copy,Clone,Serialize,Deserialize,PartialEq,Eq,Hash)]
 pub struct UniquePoint {
     lid: LocationID,
     c_pt: CPoint2
