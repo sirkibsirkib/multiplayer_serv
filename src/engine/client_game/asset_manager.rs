@@ -3,7 +3,6 @@ use ::identity::*;
 use super::piston_window::{G2dTexture,Texture,TextureSettings,Flip};
 use super::piston_window::ImageSize;
 use ::gfx_device_gl::Factory;
-use super::game_state::worlds::World;
 use std::path::{Path,PathBuf};
 use ::saving::SaverLoader;
 

@@ -3,6 +3,10 @@ use ::points::*;
 
 use std::fmt::{Debug,Formatter};
 use std::collections::HashSet;
+use utils::traits::UniqueSaveSuffix;
+
+//TODO make into unit structs
+
 
 use std;
 pub type EntityID = u64;
@@ -12,6 +16,13 @@ pub type AssetID = u16;
 pub type ObjectID = u64;
 pub type CompleteOID = (WorldID,ObjectID);
 pub type WorldID = u32;
+
+
+impl UniqueSaveSuffix for LocationID {
+    fn suffix_from(&self) -> String {
+        format!("_{}", self)
+    }
+}
 
 pub type SuperSeed = u64;
 

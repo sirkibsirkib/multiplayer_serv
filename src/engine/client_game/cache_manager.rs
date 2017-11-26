@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use ::identity::*;
 use ::engine::game_state::worlds::*;
 use ::saving::SaverLoader;
-use std::path::{Path,PathBuf};
 use super::asset_manager::AssetManager;
 
 #[derive(Debug)]
@@ -36,6 +35,10 @@ impl CacheManager {
         } else {
             Err(())
         }
+    }
+
+    pub fn world_is_cached(&self, wid: WorldID) -> bool {
+        self.worlds.contains_key(&wid)
     }
 
     pub fn get_world(&self, wid: WorldID) -> Option<&World> {

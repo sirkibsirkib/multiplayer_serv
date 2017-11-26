@@ -112,7 +112,9 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                     if Some(&(eid,lid)) == server_data.cid_to_controlling.get(&d.cid) {
                         println!("Ok you may move that!");
                         let diff = Diff::MoveEntityTo(eid,pt);
-                        if sr.borrow_mut_location_loader().apply_diff_to(lid, diff,false,).is_ok() {
+                        let x = sr.borrow_mut_world_loader();
+                        let y = sr.borrow_mut_world_prim_loader();
+                        if sr.borrow_mut_location_loader().apply_diff_to(lid, diff,false,x,y).is_ok() {
                             outgoing_updates.push(
                                 MsgToClientSet::Subset (
                                     MsgToClient::ApplyLocationDiff(lid,diff),
@@ -172,20 +174,22 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
 
                 },
                 MsgToServer::RequestLocationData(lid) => {
-                    sr.borrow_mut_location_loader().client_subscribe(d.cid, lid);
+                    let x = sr.borrow_mut_world_loader();
+                    let y = sr.borrow_mut_world_prim_loader();
+                    sr.borrow_mut_location_loader().client_subscribe(d.cid, lid,x,y);
                     if let Some(&(_,old_lid)) = server_data.cid_to_controlling.get(&d.cid) {
                         if lid != old_lid {
                             sr.borrow_mut_location_loader().client_unsubscribe(d.cid, old_lid);
                         }
                     }
-                    let loc_prim = *sr.borrow_mut_location_loader().borrow_location(lid).get_location_primitive();
+                    let loc_prim = *sr.borrow_mut_location_loader().borrow_location(lid,x,y).get_location_primitive();
                     outgoing_updates.push(
                         MsgToClientSet::Only(
                             MsgToClient::GiveLocationPrimitive(lid, loc_prim),
                             d.cid,
                         )
                     );
-                    for (eid, pt) in sr.borrow_mut_location_loader().borrow_location(lid).entity_iterator() {
+                    for (eid, pt) in sr.borrow_mut_location_loader().borrow_location(lid,x,y).entity_iterator() {
                         println!(">> informing client{:?} of eid {:?} {:?}", &d.cid, eid, pt);
                         outgoing_updates.push(
                             MsgToClientSet::Only(
@@ -201,6 +205,8 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                         println!("cid_to_controlling");
                         let mut locked_ub = user_base.lock().unwrap();
                         if ! locked_ub.client_is_setup(d.cid) {
+                            let x = sr.borrow_mut_world_loader();
+                            let y = sr.borrow_mut_world_prim_loader();
                             println!("CLIENT {:?} having first-time setup", d.cid);
                             let player_eid = server_data.use_next_eid();
                             sr.borrow_mut_entity_data_set().insert(player_eid, EntityData::new(1, 0.7));
@@ -208,7 +214,7 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                             server_data.cid_to_controlling.insert(d.cid, (player_eid,START_LOCATION_LID));
                             let free_pt : DPoint2 =
                                 sr.borrow_mut_location_loader()
-                                .borrow_location(START_LOCATION_LID)
+                                .borrow_location(START_LOCATION_LID,x,y)
                                 .free_point()
                                 .expect("Oh no! start loc is full. cant spawn");
                             let mk_diff = Diff::PlaceInside(player_eid,free_pt);
@@ -216,6 +222,8 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                                 START_LOCATION_LID,
                                 mk_diff,
                                 true,
+                                x,
+                                y,
                             ).expect("YOU SAID LOCATION WAS FREE");
                             outgoing_updates.push(
                                 MsgToClientSet::Subset (

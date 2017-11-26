@@ -4,7 +4,7 @@ use bidir_map::BidirMap;
 use ::points::DPoint2;
 use std::collections::{HashSet,HashMap};
 use ::network::messaging::Diff;
-use ::rand::{SeedableRng,Rng,Isaac64Rng};
+use ::rand::{SeedableRng,Isaac64Rng};
 use super::worlds::zones::Zone;
 
 use ::identity::*;
@@ -17,9 +17,13 @@ use super::worlds::START_WORLD;
 
 lazy_static! {
     pub static ref START_LOC_PRIM : LocationPrimitive = LocationPrimitive::new(0, 0, 1.0, 0);
-    pub static ref START_LOC : Location = Location::generate_new(*START_LOC_PRIM, *START_WORLD.get_zone(0));
+    pub static ref START_LOC : Location = Location::generate_new(*START_LOC_PRIM, START_WORLD.get_zone(0).clone());
 }
 
+
+impl KnowsSavePrefix for LocationPrimitive {
+    fn get_save_prefix() -> String {"location_prim".to_owned()}
+}
 
 #[derive(Serialize,Deserialize,Debug,Copy,Clone)]
 pub struct LocationPrimitive {
@@ -33,6 +37,9 @@ pub struct LocationPrimitive {
 }
 
 impl LocationPrimitive {
+    pub fn save_path(lid: LocationID) -> String {
+        format!("loc_prim_{}", lid)
+    }
     pub fn new(wid: WorldID, zone_id:usize, cell_to_meters : f64, super_seed: u64) -> LocationPrimitive {
         LocationPrimitive{wid:wid, zone_id:zone_id, cell_to_meters:cell_to_meters, super_seed:super_seed}
     }

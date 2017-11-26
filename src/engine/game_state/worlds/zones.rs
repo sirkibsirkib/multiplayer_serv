@@ -5,7 +5,7 @@ use ::points::*;
 use::rand::{Rng};
 use std::collections::{HashMap};
 
-#[derive(Debug)]
+#[derive(Debug,Copy,Clone)]
 pub struct ZoneSample {
     pt: CPoint2,
     data: PointSampleData,

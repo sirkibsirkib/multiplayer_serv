@@ -142,7 +142,7 @@ pub fn bounded_printable(b : BoundedString) -> String {
     q.trim().to_owned()
 }
 
-
+#[derive(Debug)]
 pub struct ProtectedQueue<T> {
     queue : Mutex<Vec<T>>,
     cond : Condvar,

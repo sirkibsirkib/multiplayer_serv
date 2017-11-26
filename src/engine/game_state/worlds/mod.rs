@@ -32,7 +32,7 @@ pub struct NoiseSample {
     pub temp: f32,
 }
 
-#[derive(Debug)]
+#[derive(Debug,Copy,Clone)]
 pub struct PointSampleData {
     pub temp: f32,
     pub height: f32,

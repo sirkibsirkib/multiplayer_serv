@@ -21,6 +21,18 @@ pub trait PrimitiveWithDiffs<T:AppliesDiff<D>,D> : Primitive<T> {
 	}
 }
 
+//eg LID:0 returns "0"
+pub trait KnowsSaveSuffix {
+	fn get_save_suffix(&self) -> String;
+}
+
+
+//eg any location returns "location"
+pub trait KnowsSavePrefix {
+	fn get_save_prefix() -> String;
+}
+
+
 //////////////////////////////////////////////
 
 /*

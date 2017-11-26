@@ -8,9 +8,12 @@ extern crate image;
 mod view;
 mod asset_manager;
 mod cache_manager;
+mod client_resources;
+
+use self::client_resources::ClientResources;
 
 use self::cache_manager::CacheManager;
-use std::collections::HashMap;
+// use std::collections::HashMap;
 use self::asset_manager::{AssetManager,HardcodedAssets};
 use self::view::{View,ViewPerspective};
 use std::sync::{Arc};
@@ -34,6 +37,7 @@ const HEIGHT : f64 = 400.0;
 use self::piston_window::*;
 use super::game_state;
 use ::points::*;
+
 
 struct Timer {
     ins : Instant,
@@ -62,6 +66,8 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
                  cid : ClientID,
                  sl: SaverLoader,
              ) {
+
+    let client_resources = ClientResources::new(sl.clone, client_out.clone(), Duration::from_millis(400));
     let mut window = init_window();
     let mut my_data = MyData {
         view: None,
@@ -73,7 +79,7 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
     };
     // let mut remote_info = RemoteInfo::new();
 
-    let mut cache_manager = CacheManager::new(sl.clone());
+    // let mut cache_manager = CacheManager::new(sl.clone());
     let hardcoded_assets = HardcodedAssets::new(&mut window.factory);
 
 
@@ -198,17 +204,30 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
                     }
                 },
                 GiveLocationPrimitive(lid, loc_prim) => {
+                    let wid = loc_prim.wid;
                     println!("OK got loc prim from serv");
-                    if let Some((c_eid, c_lid)) = my_data.controlling {
-                        if c_lid == lid {
-                            println!("... and I am expecting it");
-                            my_data.view = Some(View::new(
-                                my_data.controlling.unwrap().0,
-                                loc_prim.generate_new(),
-                                // Location::new(loc_prim),
-                                ViewPerspective::DEFAULT_SURFACE,
-                            ));
+                    if cache_manager.world_is_cached(wid) {
+                        let w = cache_manager.get_world(wid).expect("wtf cachebro");
+                        if let Some((c_eid, c_lid)) = my_data.controlling {
+                            let zone = w.get_zone(loc_prim.zone_id).clone();
+                            if c_lid == lid {
+                                println!("... and I am expecting it");
+                                my_data.view = Some(View::new(
+                                    my_data.controlling.unwrap().0,
+                                    Location::generate_new(loc_prim, zone),
+                                    // Location::new(loc_prim),
+                                    ViewPerspective::DEFAULT_SURFACE,
+                                ));
+                            }
                         }
+                    } else {
+                        dataset.outgoing_request_cache.push(
+                            MsgToServer::RequestWorldData(wid)
+                        );
+                        //resend this plz
+                        dataset.outgoing_request_cache.push(
+                            MsgToServer::RequestLocationData(lid)
+                        );
                     }
                 },
                 GiveControlling(eid, lid) => {

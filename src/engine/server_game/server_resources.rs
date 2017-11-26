@@ -90,6 +90,11 @@ impl ServerResources {
         &self.persistent.world_prim_loader
     }
 
+    #[inline]
+    pub fn borrow_world_loader(&self) -> &WorldLoader {
+        &self.world_loader
+    }
+
     ///////////////////////////////////////////////////// MUT BORROWS
 
     #[inline]
@@ -110,5 +115,10 @@ impl ServerResources {
     #[inline]
     pub fn borrow_mut_world_prim_loader(&mut self) -> &mut WorldPrimLoader {
         &mut self.persistent.world_prim_loader
+    }
+
+    #[inline]
+    pub fn borrow_mut_world_loader(&mut self) -> &mut WorldLoader {
+        &mut self.world_loader
     }
 }

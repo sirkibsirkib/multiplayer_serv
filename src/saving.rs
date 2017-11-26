@@ -10,6 +10,7 @@ use std::io::{ErrorKind,Error};
 use std::fs::create_dir;
 use std::fmt::Debug;
 use ::network::userbase::UserBase;
+use utils::traits::{KnowsSaveSuffix,KnowsSavePrefix};
 
 #[derive(Clone,Debug)]
 pub struct SaverLoader {
@@ -45,7 +46,7 @@ impl SaverLoader {
         }
     }
 
-    pub fn save_me<X>(&self, x : &X, file : &str) -> Result<(), io::Error>
+    fn save_me<X>(&self, x : &X, file : &str) -> Result<(), io::Error>
     where X : Serialize + Debug {
         let absolute_path = self.save_dir.join(Path::new(file));
         let mut f = File::create(absolute_path)?;
@@ -56,7 +57,13 @@ impl SaverLoader {
         Ok(())
     }
 
-    pub fn load_me<X>(&self, file : &str) -> Result<X, io::Error>
+    pub fn save<X,K>(&self, x: &X, key: K) -> Result<(),io::Error>
+    where X: Serialize + Debug + KnowsSavePrefix,
+          K: KnowsSaveSuffix {
+        self.save_me(x, &format!("{}{}", X::prefix_from(), key.suffix_from()))
+    }
+
+    fn load_me<X>(&self, file : &str) -> Result<X, io::Error>
     where X : DeserializeOwned {
         let absolute_path = self.save_dir.join(Path::new(file));
         let mut f = File::open(absolute_path)?;
@@ -68,5 +75,11 @@ impl SaverLoader {
         } else {
             Err(Error::new(ErrorKind::Other, "oh no!"))
         }
+    }
+
+    pub fn load<X,K>(&self, key: K) -> Result<X,io::Error>
+    where X: DeserializeOwned + KnowsSavePrefix,
+          K: KnowsSaveSuffix {
+        self.load_me(&format!("{}{}", X::prefix_from(), key.suffix_from()))
     }
 }
