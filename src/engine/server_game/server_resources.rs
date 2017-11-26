@@ -121,4 +121,33 @@ impl ServerResources {
         self.location_populate(lid);
         self.locations.get(&lid).expect("kkfam")
     }
+
+    pub fn get_mut_world_primitive(&mut self, wid: WorldID) -> &mut WorldPrimitive {
+        self.world_prim_populate(wid);
+        self.world_prims.get_mut(&wid).expect("kkfam")
+    }
+
+    pub fn get_mut_world(&mut self, wid: WorldID) -> &mut World {
+        self.world_populate(wid);
+        self.worlds.get_mut(&wid).expect("kkfam")
+    }
+
+    pub fn get_mut_location_primitive(&mut self, lid: LocationID) -> &mut LocationPrimitive {
+        self.location_prim_populate(lid);
+        self.location_prims.get_mut(&lid).expect("kkfam")
+    }
+
+    pub fn get_mut_location(&mut self, lid: LocationID) -> &mut Location {
+        self.location_populate(lid);
+        self.locations.get_mut(&lid).expect("kkfam")
+    }
+
+    pub fn save_all(&mut self) {
+        for (lid,lp) in self.location_prims.iter() {
+            self.sl.save_with_key(lp, *lid);
+        }
+        for (wid,wp) in self.world_prims.iter() {
+            self.sl.save_with_key(wp, *wid);
+        }
+    }
 }

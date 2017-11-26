@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use ::identity::{EntityID,AssetID};
+use utils::traits::*;
 
 #[derive(Serialize,Deserialize,Debug)]
 pub struct EntityDataSet {
@@ -33,5 +34,12 @@ impl EntityData {
             aid : aid,
             width_meters : width_meters,
         }
+    }
+}
+
+
+impl KnowsSavePrefix for EntityData {
+    fn get_save_prefix() -> String {
+        "entity".to_owned()
     }
 }

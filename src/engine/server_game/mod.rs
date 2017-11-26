@@ -7,6 +7,7 @@ use super::entities::{EntityData};
 use super::super::identity::{EntityID,LocationID};
 use self::server_game_state::{LocationLoader,START_LOCATION_LID};
 use self::server_resources::ServerResources;
+use rand::{Isaac64Rng,SeedableRng};
 
 use std::sync::{Arc,Mutex};
 use std::time;
@@ -57,7 +58,7 @@ pub fn game_loop(serv_in : Arc<ProtectedQueue<MsgFromClient>>,
             }
         }
     };
-    let mut sr = ServerResources::start_and_load(sl.clone());
+    let mut sr = ServerResources::new(sl.clone(), Isaac64Rng::from_seed(&[3]));
     sr.borrow_mut_object_data_set().insert(0, ObjectData::new(0, 1.0));
 
     let time_between_updates = time::Duration::from_millis(1000/game_state::UPDATES_PER_SEC);
@@ -70,7 +71,7 @@ pub fn game_loop(serv_in : Arc<ProtectedQueue<MsgFromClient>>,
         let update_start = time::Instant::now();
         if last_syncflood_at.elapsed() > time_between_syncfloods {
             last_syncflood_at = update_start;
-            synchflood(&serv_out, sr.borrow_location_loader());
+            synchflood(&serv_out, &mut sr);
 
             println!("SAVING FOR TESTING PURPOSES");
             let u : &UserBase = &userbase.lock().unwrap();
@@ -95,7 +96,7 @@ pub fn game_loop(serv_in : Arc<ProtectedQueue<MsgFromClient>>,
     }
 }
 
-fn synchflood(serv_out : &Arc<ProtectedQueue<MsgToClientSet>>, location_loader : &LocationLoader,) {
+fn synchflood(serv_out : &Arc<ProtectedQueue<MsgToClientSet>>, sr: &mut ServerResources) {
     //TODO send entity updates to all
 }
 

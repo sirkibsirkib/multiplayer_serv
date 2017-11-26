@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use ::identity::{ObjectID,AssetID};
+use utils::traits::*;
 
 #[derive(Serialize,Deserialize,Debug)]
 pub struct ObjectDataSet {
@@ -33,5 +34,11 @@ impl ObjectData {
             aid : aid,
             width_meters : width_meters,
         }
+    }
+}
+
+impl KnowsSavePrefix for ObjectData {
+    fn get_save_prefix() -> String {
+        "object".to_owned()
     }
 }
