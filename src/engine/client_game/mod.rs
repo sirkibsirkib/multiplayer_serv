@@ -66,9 +66,9 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
                  cid : ClientID,
                  sl: SaverLoader,
              ) {
-    let outgoing_request_cache : Vec<MsgToServer> = Vec::new();
+    let mut outgoing_request_cache : Vec<MsgToServer> = Vec::new();
 
-    let client_resources = ClientResources::new(sl, client_out.clone(), Duration::from_millis(400));
+    let mut client_resources = ClientResources::new(sl.clone(), client_out.clone(), Duration::from_millis(400));
     let mut window = init_window();
     let mut my_data = MyData {
         view: None,
@@ -82,7 +82,7 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
 
     // let mut cache_manager = CacheManager::new(sl.clone());
     let hardcoded_assets = HardcodedAssets::new(&mut window.factory);
-    let asset_manager = AssetManager::new(&window.factory, sl);
+    let mut asset_manager = AssetManager::new(&window.factory, sl);
 
 
     outgoing_request_cache.push(

@@ -7,6 +7,7 @@ use saving::SaverLoader;
 use utils::traits::*;
 use ::identity::UniquePoint;
 use engine::objects::*;
+use engine::entities::*;
 
 #[derive(Debug,Serialize,Deserialize)]
 struct Portals {
@@ -27,6 +28,7 @@ pub struct ServerResources {
     worlds: HashMap<WorldID, World>,
     world_prims: HashMap<WorldID, WorldPrimitive>,
     objects: HashMap<ObjectID, ObjectData>,
+    entities: HashMap<EntityID, EntityData>,
 
     sl: SaverLoader,
     rng: Isaac64Rng,
@@ -40,6 +42,7 @@ impl ServerResources {
             worlds: HashMap::new(),
             world_prims: HashMap::new(),
             objects: HashMap::new(),
+            entities: HashMap::new(),
             rng: rng,
             sl: sl,
         }
@@ -104,6 +107,30 @@ impl ServerResources {
         self.locations.insert(lid, l);
     }
 
+    fn object_populate(&mut self, oid: ObjectID) {
+        if self.objects.contains_key(&oid) {
+            //.1
+            return
+        } else if let Ok(od) = self.sl.load_with_key::<ObjectData,ObjectID>(oid) {
+            //.2
+            self.objects.insert(oid, od);
+            return
+        }
+        panic!("Unknown Object creation requested!");
+    }
+
+    fn entity_populate(&mut self, eid: EntityID) {
+        if self.entities.contains_key(&eid) {
+            //.1
+            return
+        } else if let Ok(ed) = self.sl.load_with_key::<EntityData,EntityID>(eid) {
+            //.2
+            self.entities.insert(eid, ed);
+            return
+        }
+        panic!("Unknown Entity creation requested!");
+    }
+
     ///////////////////////////// PUBLIC ///////////////////////
 
     pub fn get_world_primitive(&mut self, wid: WorldID) -> &WorldPrimitive {
@@ -125,6 +152,19 @@ impl ServerResources {
         self.location_populate(lid);
         self.locations.get(&lid).expect("kkfam")
     }
+
+    pub fn get_object(&mut self, oid: ObjectID) -> &ObjectData {
+        self.object_populate(oid);
+        self.objects.get(&oid).unwrap()
+    }
+
+    pub fn get_entity(&mut self, eid: EntityID) -> &EntityData {
+        self.entity_populate(eid);
+        self.entities.get(&eid).unwrap()
+    }
+
+
+    /////////////////////////////
 
     pub fn get_mut_world_primitive(&mut self, wid: WorldID) -> &mut WorldPrimitive {
         self.world_prim_populate(wid);
@@ -173,5 +213,9 @@ impl ServerResources {
 
     pub fn define_object(&mut self, oid: ObjectID, data: ObjectData) {
         self.objects.insert(oid, data);
+    }
+
+    pub fn define_entity(&mut self, eid: EntityID, data: EntityData) {
+        self.entities.insert(eid, data);
     }
 }

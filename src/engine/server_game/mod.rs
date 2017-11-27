@@ -62,7 +62,8 @@ pub fn game_loop(serv_in : Arc<ProtectedQueue<MsgFromClient>>,
         }
     };
     let mut sr = ServerResources::new(sl.clone(), Isaac64Rng::from_seed(&[3]));
-    sr.borrow_mut_object_data_set().insert(0, ObjectData::new(0, 1.0));
+
+    sr.define_object(0, ObjectData::new(0, 1.0));
 
     let time_between_updates = time::Duration::from_millis(1000/game_state::UPDATES_PER_SEC);
 
@@ -137,30 +138,20 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                     }
                 },
                 MsgToServer::RequestObjectData(oid) => {
-                    if let Some(data) = sr.borrow_object_data_set().get(oid) {
-                        outgoing_updates.push(
-                            MsgToClientSet::Only(
-                                MsgToClient::GiveObjectData(oid, *data),
-                                d.cid,
-                            )
-                        );
-                    } else {
-                        println!("Client asking for nonexistant object data for oid {:?}", oid);
-                        println!("object data is actually {:?}", sr.borrow_object_data_set());
-                    }
+                    outgoing_updates.push(
+                        MsgToClientSet::Only(
+                            MsgToClient::GiveObjectData(oid, *sr.get_object(oid)),
+                            d.cid,
+                        )
+                    );
                 },
                 MsgToServer::RequestEntityData(eid) => {
-                    if let Some(data) = sr.borrow_entity_data_set().get(eid) {
-                        outgoing_updates.push(
-                            MsgToClientSet::Only(
-                                MsgToClient::GiveEntityData(eid, *data),
-                                d.cid,
-                            )
-                        );
-                    } else {
-                        println!("Client asking for nonexistant entity data for eid {:?}", eid);
-                        println!("entity data is actually {:?}", sr.borrow_entity_data_set());
-                    }
+                    outgoing_updates.push(
+                        MsgToClientSet::Only(
+                            MsgToClient::GiveEntityData(eid, *sr.get_entity(eid)),
+                            d.cid,
+                        )
+                    );
                 },
                 MsgToServer::ClientHasDisconnected => {
                     println!("Client {:?} has disconnected!", &d.cid);
@@ -182,20 +173,24 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
 
                 },
                 MsgToServer::RequestLocationData(lid) => {
-                    sr.borrow_mut_location_loader().client_subscribe(d.cid, lid);
+                    subscription_manager.subscribe(lid, d.cid);
+                    // sr.borrow_mut_location_loader().client_subscribe(d.cid, lid);
                     if let Some(&(_,old_lid)) = server_data.cid_to_controlling.get(&d.cid) {
                         if lid != old_lid {
-                            sr.borrow_mut_location_loader().client_unsubscribe(d.cid, old_lid);
+                            subscription_manager.unsubscribe(lid, d.cid);
+                            // sr.borrow_mut_location_loader().client_unsubscribe(d.cid, old_lid);
                         }
                     }
-                    let loc_prim = *sr.borrow_mut_location_loader().borrow_location(lid,x,y).get_location_primitive();
                     outgoing_updates.push(
                         MsgToClientSet::Only(
-                            MsgToClient::GiveLocationPrimitive(lid, loc_prim),
+                            MsgToClient::GiveLocationPrimitive(
+                                lid,
+                                sr.get_location_primitive(lid).clone()
+                            ),
                             d.cid,
                         )
                     );
-                    for (eid, pt) in sr.borrow_mut_location_loader().borrow_location(lid,x,y).entity_iterator() {
+                    for (eid, pt) in sr.get_location(lid).entity_iterator() {
                         println!(">> informing client{:?} of eid {:?} {:?}", &d.cid, eid, pt);
                         outgoing_updates.push(
                             MsgToClientSet::Only(
@@ -211,30 +206,22 @@ fn update_step(serv_in : &Arc<ProtectedQueue<MsgFromClient>>,
                         println!("cid_to_controlling");
                         let mut locked_ub = user_base.lock().unwrap();
                         if ! locked_ub.client_is_setup(d.cid) {
-                            let x = sr.borrow_mut_world_loader();
-                            let y = sr.borrow_mut_world_prim_loader();
                             println!("CLIENT {:?} having first-time setup", d.cid);
                             let player_eid = server_data.use_next_eid();
-                            sr.borrow_mut_entity_data_set().insert(player_eid, EntityData::new(1, 0.7));
+                            sr.define_entity(player_eid, EntityData::new(1, 0.7));
                             locked_ub.set_client_setup_true(d.cid);
                             server_data.cid_to_controlling.insert(d.cid, (player_eid,START_LOCATION_LID));
                             let free_pt : DPoint2 =
-                                sr.borrow_mut_location_loader()
-                                .borrow_location(START_LOCATION_LID,x,y)
+                                sr.get_location(START_LOCATION_LID)
                                 .free_point()
                                 .expect("Oh no! start loc is full. cant spawn");
                             let mk_diff = Diff::PlaceInside(player_eid,free_pt);
-                            sr.borrow_mut_location_loader().apply_diff_to(
-                                START_LOCATION_LID,
-                                mk_diff,
-                                true,
-                                x,
-                                y,
-                            ).expect("YOU SAID LOCATION WAS FREE");
+                            sr.get_mut_location(START_LOCATION_LID).apply_diff(mk_diff)
+                            .expect("YOU SAID LOCATION WAS FREE");
                             outgoing_updates.push(
                                 MsgToClientSet::Subset (
                                     MsgToClient::ApplyLocationDiff(START_LOCATION_LID,mk_diff),
-                                    sr.borrow_location_loader().get_subscriptions_for(START_LOCATION_LID),
+                                    subscription_manager.get_subs_for(START_LOCATION_LID),
                                 )
                             );
                         }

@@ -191,7 +191,6 @@ impl View {
                 image(map_tex, c.transform.trans(WIDTH/2.0 + normal_offset , 50.0), g);
                 image(map_tex, c.transform.trans(WIDTH/2.0 + wrapped_offset , 50.0), g);
                 image(planet_mask_tex, c.transform.trans(0.0, 50.0), g);
-
             });
         }
     }
