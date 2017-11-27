@@ -25,6 +25,12 @@ impl KnowsSaveSuffix for LocationID {
     }
 }
 
+impl KnowsSaveSuffix for ObjectID {
+    fn get_save_suffix(&self) -> String {
+        format!("_{}", self)
+    }
+}
+
 pub type SuperSeed = u64;
 
 //////////////////////////////////////////////////////////////////////////////////

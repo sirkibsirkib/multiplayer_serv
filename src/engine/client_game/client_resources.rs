@@ -8,6 +8,32 @@ use std::collections::HashMap;
 use ::engine::game_state::locations::{Location,LocationPrimitive};
 use ::engine::game_state::worlds::{World,WorldPrimitive};
 use saving::SaverLoader;
+use engine::objects::*;
+use engine::entities::*;
+use utils::traits::*;
+use std::hash::Hash;
+
+// struct ThingManager<K,V>
+// where
+// K : KnowsSaveSuffix + Hash + Eq,
+// V : KnowsSavePrefix {
+// 	in_memory: HashMap<K,V>,
+// }
+
+// impl<K,V> ThingManager<K,V>
+// where
+// K : KnowsSaveSuffix + Hash + Eq,
+// V : KnowsSavePrefix {
+// 	pub fn new() -> ThingManager<K,V> {
+// 		ThingManager {
+// 			in_memory: HashMap::new(),
+// 		}
+// 	}
+
+// 	pub fn fast_populate()
+// }
+
+
 
 
 #[derive(Debug)]
@@ -16,6 +42,9 @@ pub struct ClientResources {
 	location_prims: HashMap<LocationID, LocationPrimitive>,
 	worlds: HashMap<WorldID, World>,
 	world_prims: HashMap<WorldID, WorldPrimitive>,
+	objects: HashMap<ObjectID, ObjectData>,
+	entities: HashMap<EntityID, EntityData>,
+
 	last_req_at: Instant,
 	req_pause_time: Duration,
 	client_out : Arc<ProtectedQueue<MsgToServer>>,
@@ -29,6 +58,8 @@ impl ClientResources {
 			location_prims: HashMap::new(),
 			worlds: HashMap::new(),
 			world_prims: HashMap::new(),
+			objects: HashMap::new(),
+			entities: HashMap::new(),
 			last_req_at: Instant::now(),
 			req_pause_time: req_pause_time,
 			client_out : client_out,
@@ -136,6 +167,42 @@ impl ClientResources {
 		}
 	}
 
+	pub fn fast_object_populate(&mut self, oid: ObjectID) -> bool {
+		if self.objects.contains_key(&oid) {
+			//.1
+			true
+		} else if let Ok(od) = self.sl.load_with_key::<ObjectData,ObjectID>(oid) {
+			self.objects.insert(oid, od);
+			true
+		} else {
+			let now = Instant::now();
+			if self.last_req_at + self.req_pause_time < now {
+				self.client_out.lock_push_notify (
+					MsgToServer::RequestObjectData(oid)
+				);
+			}
+			false
+		}
+	}
+
+	pub fn fast_entity_populate(&mut self, eid: EntityID) -> bool {
+		if self.entities.contains_key(&eid) {
+			//.1
+			true
+		} else if let Ok(ed) = self.sl.load_with_key::<EntityData,EntityID>(eid) {
+			self.entities.insert(eid, ed);
+			true
+		} else {
+			let now = Instant::now();
+			if self.last_req_at + self.req_pause_time < now {
+				self.client_out.lock_push_notify (
+					MsgToServer::RequestEntityData(eid)
+				);
+			}
+			false
+		}
+	}
+
 	///////////////////////////// PUBLIC ///////////////////////
 
 	pub fn server_sent_data(&mut self, msg: MsgToClient) {
@@ -145,6 +212,12 @@ impl ClientResources {
 			},
 			MsgToClient::GiveWorldPrimitive(wid, wp) => {
 				self.world_prims.insert(wid,wp);
+			},
+			MsgToClient::GiveObjectData(oid, od) => {
+				self.objects.insert(oid,od);
+			},
+			MsgToClient::GiveEntityData(eid, ed) => {
+				self.entities.insert(eid,ed);
 			},
 			m => {
 				println!("Client resources got unexpected msg! {:?}", m);
@@ -179,6 +252,22 @@ impl ClientResources {
 	pub fn get_location(&mut self, lid: LocationID) -> Result<&Location,()> {
 		if self.fast_location_populate(lid) {
 			Ok(self.locations.get(&lid).expect("kkfam"))
+		} else {
+			Err(())
+		}
+	}
+
+	pub fn get_object(&mut self, oid: ObjectID) -> Result<&ObjectData,()> {
+		if self.fast_object_populate(oid) {
+			Ok(self.objects.get(&oid).unwrap())
+		} else {
+			Err(())
+		}
+	}
+
+	pub fn get_entity(&mut self, eid: EntityID) -> Result<&EntityData,()> {
+		if self.fast_entity_populate(eid) {
+			Ok(self.entities.get(&eid).unwrap())
 		} else {
 			Err(())
 		}

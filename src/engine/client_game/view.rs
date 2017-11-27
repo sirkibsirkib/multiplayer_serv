@@ -1,4 +1,6 @@
-use super::{EntityID,WIDTH,HEIGHT,Location,Dataset,MyData};
+use super::{EntityID,WIDTH,HEIGHT,Location,MyData};
+use super::ClientResources;
+use super::AssetManager;
 use ::points::*;
 use super::piston_window::{PistonWindow,GenericEvent,clear,image,Transformed};
 use std::time::{Instant,Duration};
@@ -85,7 +87,8 @@ impl View {
                        &self,
                        event : &E,
                        window : &mut PistonWindow,
-                       dataset : &mut Dataset,
+                       client_resources: &mut ClientResources,
+                       asset_manager: &mut AssetManager,
                        loc: &Location,
     ) where E : GenericEvent {
         if let Some(center) = loc.point_of(self.eid) {
@@ -93,13 +96,13 @@ impl View {
             window.draw_2d(event, |c, g| {
                 for (oid, pt_set) in loc.object_iterator() {
                     if missing_oid_assets.contains(&oid) {continue}
-                    if let Some(object_data) = dataset.object_dataset.get(*oid) {
+                    if let Ok(object_data) = client_resources.get_object(*oid) {
                         let zoom = calc_zoom(
-                            dataset.asset_manager.get_tex_width(object_data.aid),
+                            asset_manager.get_tex_width(object_data.aid),
                             self.vp.screen_meter_width,
                             object_data.width_meters,
                         );
-                        let tex = dataset.asset_manager.get_texture_for(object_data.aid);
+                        let tex = asset_manager.get_texture_for(object_data.aid);
                         object_data.width_meters;
                         for screen_pt in pt_set.iter()
                         .map(|pt| self.translate_pt_relative_to(*pt, center, loc))
@@ -110,18 +113,6 @@ impl View {
                     } else {
                         missing_oid_assets.push(*oid);
                     }
-                    if ! missing_oid_assets.is_empty() {
-                        let now = Instant::now();
-                        if dataset.data_requests_supressed_until.ins < now {
-                            for oid in missing_oid_assets.iter() {
-                                println!("Requesting OID {:?}'s data", &oid);
-                                dataset.outgoing_request_cache.push(
-                                    MsgToServer::RequestObjectData(*oid)
-                                ); // request to populate asset manager
-                            }
-                            dataset.data_requests_supressed_until.ins = now + dataset.data_requests_supressed_until.setdur;
-                        }
-                    }
                 }
             });
         }
@@ -131,7 +122,8 @@ impl View {
                        &self,
                        event : &E,
                        window : &mut PistonWindow,
-                       dataset : &mut Dataset,
+                       client_resources: &mut ClientResources,
+                       asset_manager: &mut AssetManager,
                        loc: &Location,
     ) where E : GenericEvent {
         if let Some(center) = loc.point_of(self.eid) {
@@ -141,13 +133,13 @@ impl View {
                     if missing_eid_assets.contains(&eid) {
                         continue;
                     }
-                    if let Some(entity_data) = dataset.entity_dataset.get(*eid) {
+                    if let Ok(entity_data) = client_resources.get_entity(*eid) {
                         let zoom = calc_zoom(
-                            dataset.asset_manager.get_tex_width(entity_data.aid),
+                            asset_manager.get_tex_width(entity_data.aid),
                             self.vp.screen_meter_width,
                             entity_data.width_meters,
                         );
-                        let tex = dataset.asset_manager.get_texture_for(entity_data.aid);
+                        let tex = asset_manager.get_texture_for(entity_data.aid);
                         let screen_pt = self.translate_pt_relative_to(*pt, center, loc);
                         if is_on_screen(&screen_pt) {
                             image(tex, c.transform
@@ -155,18 +147,6 @@ impl View {
                         }
                     } else {
                         missing_eid_assets.push(*eid);
-                    }
-                    if ! missing_eid_assets.is_empty() {
-                        let now = Instant::now();
-                        if dataset.data_requests_supressed_until.ins < now {
-                            for eid in missing_eid_assets.iter() {
-                                println!("Requesting EID {:?}'s data", &eid);
-                                dataset.outgoing_request_cache.push(
-                                    MsgToServer::RequestEntityData(*eid)
-                                ); // request to populate asset manager
-                            }
-                            dataset.data_requests_supressed_until.ins = now + dataset.data_requests_supressed_until.setdur;
-                        }
                     }
                 }
             });
@@ -181,26 +161,26 @@ impl View {
                        &self,
                        event : &E,
                        window : &mut PistonWindow,
-                       dataset : &mut Dataset,
+                       client_resources: &mut ClientResources,
+                       asset_manager: &mut AssetManager,
                        loc: &Location,
     ) where E : GenericEvent {
-        self.render_location_objects(event, window, dataset, loc);
-        self.render_location_entities(event, window, dataset, loc);
+        self.render_location_objects(event, window, client_resources, asset_manager, loc);
+        self.render_location_entities(event, window, client_resources, asset_manager, loc);
     }
 
     pub fn render_world<E>(
                        &self,
                        event : &E,
                        window : &mut PistonWindow,
-                       dataset : &mut Dataset,
+                       client_resources: &mut ClientResources,
+                       asset_manager: &mut AssetManager,
                        wid: WorldID,
                        hardcoded_assets : &HardcodedAssets,
                        longitude_center: f64,
     ) where E : GenericEvent {
-
-        // dataset.longitude = (dataset.longitude + 0.01 % 1.0);
         let planet_mask_tex = &hardcoded_assets.planet_mask;
-        if let Ok(map_tex) = dataset.asset_manager.get_map_for(wid) {
+        if let Ok(map_tex) = asset_manager.get_map_for(wid) {
             let normal_offset = -longitude_center*map_tex.get_size().0 as f64;
             let wrapped_offset = (if longitude_center > 0.5 {
                 1.0-longitude_center
@@ -213,14 +193,6 @@ impl View {
                 image(planet_mask_tex, c.transform.trans(0.0, 50.0), g);
 
             });
-        } else {
-            let now = Instant::now();
-            if dataset.data_requests_supressed_until.ins < now {
-                dataset.outgoing_request_cache.push(
-                    MsgToServer::RequestWorldData(wid)
-                );
-                dataset.data_requests_supressed_until.ins = now + dataset.data_requests_supressed_until.setdur;
-            }
         }
     }
 }

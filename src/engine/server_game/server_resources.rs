@@ -6,6 +6,7 @@ use ::engine::game_state::worlds::{World,WorldPrimitive};
 use saving::SaverLoader;
 use utils::traits::*;
 use ::identity::UniquePoint;
+use engine::objects::*;
 
 #[derive(Debug,Serialize,Deserialize)]
 struct Portals {
@@ -25,6 +26,8 @@ pub struct ServerResources {
     location_prims: HashMap<LocationID, LocationPrimitive>,
     worlds: HashMap<WorldID, World>,
     world_prims: HashMap<WorldID, WorldPrimitive>,
+    objects: HashMap<ObjectID, ObjectData>,
+
     sl: SaverLoader,
     rng: Isaac64Rng,
 }
@@ -36,6 +39,7 @@ impl ServerResources {
             location_prims: HashMap::new(),
             worlds: HashMap::new(),
             world_prims: HashMap::new(),
+            objects: HashMap::new(),
             rng: rng,
             sl: sl,
         }
@@ -142,6 +146,8 @@ impl ServerResources {
         self.locations.get_mut(&lid).expect("kkfam")
     }
 
+    /////////////////////////////////////////////////////////////////////
+
     pub fn save_all(&mut self) {
         for (lid,lp) in self.location_prims.iter() {
             self.sl.save_with_key(lp, *lid);
@@ -159,6 +165,13 @@ impl ServerResources {
     }
 
     pub fn unload_wid(&mut self, wid: WorldID) {
+        if let Some(wp) = self.world_prims.remove(&wid) {
+            self.sl.save_with_key(&wp, wid);
+        }
+        let _ = self.worlds.remove(&wid);
+    }
 
+    pub fn define_object(&mut self, oid: ObjectID, data: ObjectData) {
+        self.objects.insert(oid, data);
     }
 }

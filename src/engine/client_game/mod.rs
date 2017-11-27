@@ -53,19 +53,20 @@ struct MyData {
     viewing_map: bool,
 }
 
-pub struct Dataset {
-    asset_manager : AssetManager,
-    entity_dataset : EntityDataSet,
-    object_dataset : ObjectDataSet,
-    data_requests_supressed_until : Timer,
-    outgoing_request_cache : Vec<MsgToServer>,
-}
+// pub struct Dataset {
+//     asset_manager : AssetManager,
+//     entity_dataset : EntityDataSet,
+//     object_dataset : ObjectDataSet,
+//     data_requests_supressed_until : Timer,
+//     
+// }
 
 pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
                  client_out : Arc<ProtectedQueue<MsgToServer>>,
                  cid : ClientID,
                  sl: SaverLoader,
              ) {
+    let outgoing_request_cache : Vec<MsgToServer> = Vec::new();
 
     let client_resources = ClientResources::new(sl, client_out.clone(), Duration::from_millis(400));
     let mut window = init_window();
@@ -81,17 +82,10 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
 
     // let mut cache_manager = CacheManager::new(sl.clone());
     let hardcoded_assets = HardcodedAssets::new(&mut window.factory);
+    let asset_manager = AssetManager::new(&window.factory, sl);
 
 
-    let mut dataset = Dataset {
-        asset_manager : AssetManager::new(&window.factory, sl),
-        entity_dataset : EntityDataSet::new(),
-        object_dataset : ObjectDataSet::new(),
-        data_requests_supressed_until : Timer {ins : Instant::now(),setdur : Duration::from_millis(500)},
-        outgoing_request_cache : vec![],
-    };
-
-    dataset.outgoing_request_cache.push(
+    outgoing_request_cache.push(
         MsgToServer::RequestControlling
     );
     println!("Client game loop");
@@ -105,9 +99,23 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
                 if let Ok(loc) = client_resources.get_location(v.lid) {
                     View::clear_window(&e, &mut window);
                     if my_data.viewing_map {
-                        v.render_world(&e, &mut window, &mut dataset, my_data.wid, &hardcoded_assets, my_data.longitude);
+                        v.render_world(
+                            &e,
+                            &mut window,
+                            &mut client_resources,
+                            &mut asset_manager,
+                            my_data.wid,
+                            &hardcoded_assets,
+                            my_data.longitude
+                        );
                     } else {
-                        v.render_location(&e, &mut window, &mut dataset, loc);
+                        v.render_location(
+                            &e,
+                            &mut window,
+                            &mut client_resources,
+                            &mut asset_manager,
+                            loc
+                        );
                     }
                 }
             }
@@ -140,7 +148,7 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
                     if let Some((eid, _)) = my_data.controlling;
                     if let Some(pt) = v.translate_screenpt(CPoint2::new(m[0] as f32, m[1] as f32), loc);
                     then {
-                        dataset.outgoing_request_cache.push(
+                        outgoing_request_cache.push(
                             MsgToServer::ControlMoveTo(my_data.controlling.unwrap().1, eid, pt)
                         );
                     }
@@ -166,7 +174,7 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
                 &client_in,
                 &client_out,
                 &mut my_data,
-                &mut dataset,
+                &mut outgoing_request_cache,
                 // &mut cache_manager,
                 &mut client_resources,
             );
@@ -178,7 +186,7 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
                client_out : &Arc<ProtectedQueue<MsgToServer>>,
                // outgoing_update_requests : &mut Vec<MsgToServer>,
                my_data : &mut MyData,
-               dataset : &mut Dataset,
+               outgoing_request_cache : &mut Vec<MsgToServer>,
                // cache_manager : &mut CacheManager,
                client_resources: &mut ClientResources,
                // entity_data : &mut EntityDataSet,
@@ -195,10 +203,12 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
                     // cache_manager.ensure_map_file_exists_for(wid, &dataset.asset_manager);
                 },
                 GiveObjectData(oid,data) => {
-                    dataset.object_dataset.insert(oid,data);
+                    client_resources.server_sent_data(GiveObjectData(oid,data));
+                    // dataset.object_dataset.insert(oid,data);
                 },
                 GiveEntityData(eid,data) => {
-                    dataset.entity_dataset.insert(eid,data);
+                    client_resources.server_sent_data(GiveEntityData(eid,data));
+                    // dataset.entity_dataset.insert(eid,data);
                 },
                 ApplyLocationDiff(lid,diff) => {
                     if let Some(ref mut view) = my_data.view {
@@ -230,7 +240,7 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
                     my_data.controlling = Some((eid,lid));
                     if going_to_new_loc {
                         my_data.view = None; //subsequent message will populate this
-                        dataset.outgoing_request_cache.push(
+                        outgoing_request_cache.push(
                             MsgToServer::RequestLocationData(lid)
                         ); // request data to populate `my_data.viewing`
                     }
@@ -242,8 +252,8 @@ fn synchronize(client_in : &Arc<ProtectedQueue<MsgToClient>>,
             }
         }
     }
-    if ! dataset.outgoing_request_cache.is_empty() {
-        client_out.lock_pushall_notify(dataset.outgoing_request_cache.drain(..));
+    if ! outgoing_request_cache.is_empty() {
+        client_out.lock_pushall_notify(outgoing_request_cache.drain(..));
     }
 }
 
