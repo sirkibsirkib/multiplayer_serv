@@ -17,7 +17,7 @@ use super::worlds::START_WORLD;
 
 lazy_static! {
     pub static ref START_LOC_PRIM : LocationPrimitive = LocationPrimitive::new(0, 0, 1.0, 0);
-    pub static ref START_LOC : Location = Location::generate_new(*START_LOC_PRIM, START_WORLD.get_zone(0).clone());
+    // pub static ref START_LOC : Location = Location::generate_new(*START_LOC_PRIM, START_WORLD.get_zone(0).clone());
 }
 
 

@@ -1,9 +1,10 @@
 use super::SaverLoader;
-use ::engine::game_state::locations::{Location,LocationPrimitive,START_LOC};
+use ::engine::game_state::locations::{Location,LocationPrimitive};
 use ::identity::{LocationID};
 use super::{WorldLoader,WorldPrimLoader};
 use super::{Diff};
 use super::super::super::game_state::worlds::zones::Zone;
+use super::super::super::game_state::worlds::START_WORLD;
 use ::utils::traits::*;
 // use super::super::network::messaging::MsgToClient;
 
@@ -78,7 +79,8 @@ impl LocationGuard {
                 if lid == super::START_LOCATION_LID { //ok must be a new game
                     println!("Generating start location!");
                     LocationGuard {
-                        loc : *START_LOC,
+                        // TODO check this doesnt make duplicates
+                        loc : Location::generate_new(*super::START_LOC_PRIM, START_WORLD.get_zone(0).clone()),
                         diffs : vec![],
                     }
                 } else { //nope! just missing savefile

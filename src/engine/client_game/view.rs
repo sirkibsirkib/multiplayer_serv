@@ -87,7 +87,7 @@ impl View {
                        &self,
                        event : &E,
                        window : &mut PistonWindow,
-                       client_resources: &mut ClientResources,
+                       client_resources: &ClientResources,
                        asset_manager: &mut AssetManager,
                        loc: &Location,
     ) where E : GenericEvent {
@@ -96,7 +96,7 @@ impl View {
             window.draw_2d(event, |c, g| {
                 for (oid, pt_set) in loc.object_iterator() {
                     if missing_oid_assets.contains(&oid) {continue}
-                    if let Ok(object_data) = client_resources.get_object(*oid) {
+                    if let Some(object_data) = client_resources.try_get_object(*oid) {
                         let zoom = calc_zoom(
                             asset_manager.get_tex_width(object_data.aid),
                             self.vp.screen_meter_width,
@@ -122,7 +122,7 @@ impl View {
                        &self,
                        event : &E,
                        window : &mut PistonWindow,
-                       client_resources: &mut ClientResources,
+                       client_resources: &ClientResources,
                        asset_manager: &mut AssetManager,
                        loc: &Location,
     ) where E : GenericEvent {
@@ -133,7 +133,7 @@ impl View {
                     if missing_eid_assets.contains(&eid) {
                         continue;
                     }
-                    if let Ok(entity_data) = client_resources.get_entity(*eid) {
+                    if let Some(entity_data) = client_resources.try_get_entity(*eid) {
                         let zoom = calc_zoom(
                             asset_manager.get_tex_width(entity_data.aid),
                             self.vp.screen_meter_width,
@@ -161,19 +161,20 @@ impl View {
                        &self,
                        event : &E,
                        window : &mut PistonWindow,
-                       client_resources: &mut ClientResources,
+                       client_resources: &ClientResources,
                        asset_manager: &mut AssetManager,
-                       loc: &Location,
     ) where E : GenericEvent {
-        self.render_location_objects(event, window, client_resources, asset_manager, loc);
-        self.render_location_entities(event, window, client_resources, asset_manager, loc);
+        if let Some(loc) = client_resources.try_get_location(self.lid) {
+            self.render_location_objects(event, window, client_resources, asset_manager, loc);
+            self.render_location_entities(event, window, client_resources, asset_manager, loc);
+        }
     }
 
     pub fn render_world<E>(
                        &self,
                        event : &E,
                        window : &mut PistonWindow,
-                       client_resources: &mut ClientResources,
+                       client_resources: &ClientResources,
                        asset_manager: &mut AssetManager,
                        wid: WorldID,
                        hardcoded_assets : &HardcodedAssets,

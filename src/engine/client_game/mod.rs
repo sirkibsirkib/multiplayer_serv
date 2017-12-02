@@ -96,9 +96,7 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
         if let Some(_) = e.render_args() {
             window.draw_2d(&e, | _ , graphics| clear([0.0; 4], graphics));
             if let Some(ref v) = my_data.view {
-                if let Ok(loc) = client_resources.get_location(v.lid) {
-                    View::clear_window(&e, &mut window);
-                    if my_data.viewing_map {
+                if my_data.viewing_map {
                         v.render_world(
                             &e,
                             &mut window,
@@ -114,10 +112,8 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
                             &mut window,
                             &mut client_resources,
                             &mut asset_manager,
-                            loc
                         );
                     }
-                }
             }
         }
         if let Some(q) = e.mouse_scroll_args() {
@@ -143,7 +139,7 @@ pub fn game_loop(client_in : Arc<ProtectedQueue<MsgToClient>>,
             if button == Button::Mouse(MouseButton::Left) {
                 if_chain! {
                     if let Some(ref mut v) = my_data.view;
-                    if let Ok(loc) = client_resources.get_location(v.lid);
+                    if let Some(loc) = client_resources.try_get_location(v.lid);
                     if let Some(m) = mouse_at;
                     if let Some((eid, _)) = my_data.controlling;
                     if let Some(pt) = v.translate_screenpt(CPoint2::new(m[0] as f32, m[1] as f32), loc);

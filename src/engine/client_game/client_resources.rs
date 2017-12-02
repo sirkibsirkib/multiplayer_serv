@@ -1,10 +1,9 @@
 use ::identity::*;
 use network::messaging::MsgToClient;
-use std::sync::Arc;
 use network::messaging::MsgToServer;
 use network::ProtectedQueue;
 use std::time::{Instant,Duration};
-use std::collections::HashMap;
+use std::collections::{HashMap,HashSet};
 use ::engine::game_state::locations::{Location,LocationPrimitive};
 use ::engine::game_state::worlds::{World,WorldPrimitive};
 use saving::SaverLoader;
@@ -12,6 +11,7 @@ use engine::objects::*;
 use engine::entities::*;
 use utils::traits::*;
 use std::hash::Hash;
+use std::sync::{Arc,Mutex};
 
 // struct ThingManager<K,V>
 // where
@@ -33,7 +33,28 @@ use std::hash::Hash;
 // 	pub fn fast_populate()
 // }
 
+#[derive(Debug)]
+struct ToAcquire {
+    locations: HashSet<LocationID>,
+    location_prims: HashSet<LocationID>,
+    worlds: HashSet<WorldID>,
+    world_prims: HashSet<WorldID>,
+    objects: HashSet<ObjectID>,
+    entities: HashSet<EntityID>,
+}
 
+impl ToAcquire {
+    fn new() -> Self {
+        ToAcquire {
+            locations: HashSet::new(),
+            location_prims: HashSet::new(),
+            worlds: HashSet::new(),
+            world_prims: HashSet::new(),
+            objects: HashSet::new(),
+            entities: HashSet::new(),
+        }
+    }
+}
 
 
 #[derive(Debug)]
@@ -44,6 +65,8 @@ pub struct ClientResources {
 	world_prims: HashMap<WorldID, WorldPrimitive>,
 	objects: HashMap<ObjectID, ObjectData>,
 	entities: HashMap<EntityID, EntityData>,
+
+	to_acquire: Arc<Mutex<ToAcquire>>,
 
 	last_req_at: Instant,
 	req_pause_time: Duration,
@@ -62,6 +85,7 @@ impl ClientResources {
 			entities: HashMap::new(),
 			last_req_at: Instant::now(),
 			req_pause_time: req_pause_time,
+            to_acquire: Arc::new(Mutex::new(ToAcquire::new())),
 			client_out : client_out,
 			sl: sl,
 		}
@@ -225,53 +249,107 @@ impl ClientResources {
 		}
 	}
 
-	pub fn get_world_primitive(&mut self, wid: WorldID) -> Result<&WorldPrimitive,()> {
-		if self.fast_world_prim_populate(wid) {
-			Ok(self.world_prims.get(&wid).expect("kkfam"))
-		} else {
-			Err(())
-		}
-	}
+	// pub fn get_world_primitive(&mut self, wid: WorldID) -> Result<&WorldPrimitive,()> {
+	// 	if self.fast_world_prim_populate(wid) {
+	// 		Ok(self.world_prims.get(&wid).expect("kkfam"))
+	// 	} else {
+	// 		Err(())
+	// 	}
+	// }
 
-	pub fn get_world(&mut self, wid: WorldID) -> Result<&World,()> {
-		if self.fast_world_populate(wid) {
-			Ok(self.worlds.get(&wid).expect("kkfam"))
-		} else {
-			Err(())
-		}
-	}
+	// pub fn get_world(&mut self, wid: WorldID) -> Result<&World,()> {
+	// 	if self.fast_world_populate(wid) {
+	// 		Ok(self.worlds.get(&wid).expect("kkfam"))
+	// 	} else {
+	// 		Err(())
+	// 	}
+	// }
 
-	pub fn get_location_primitive(&mut self, lid: LocationID) -> Result<&LocationPrimitive,()> {
-		if self.fast_location_prim_populate(lid) {
-			Ok(self.location_prims.get(&lid).expect("kkfam"))
-		} else {
-			Err(())
-		}
-	}
+	// pub fn get_location_primitive(&mut self, lid: LocationID) -> Result<&LocationPrimitive,()> {
+	// 	if self.fast_location_prim_populate(lid) {
+	// 		Ok(self.location_prims.get(&lid).expect("kkfam"))
+	// 	} else {
+	// 		Err(())
+	// 	}
+	// }
 
-	pub fn get_location(&mut self, lid: LocationID) -> Result<&Location,()> {
-		if self.fast_location_populate(lid) {
-			Ok(self.locations.get(&lid).expect("kkfam"))
-		} else {
-			Err(())
-		}
-	}
+	// pub fn get_location(&mut self, lid: LocationID) -> Result<&Location,()> {
+	// 	if self.fast_location_populate(lid) {
+	// 		Ok(self.locations.get(&lid).expect("kkfam"))
+	// 	} else {
+	// 		Err(())
+	// 	}
+	// }
 
-	pub fn get_object(&mut self, oid: ObjectID) -> Result<&ObjectData,()> {
-		if self.fast_object_populate(oid) {
-			Ok(self.objects.get(&oid).unwrap())
-		} else {
-			Err(())
-		}
-	}
+	// pub fn get_object(&mut self, oid: ObjectID) -> Result<&ObjectData,()> {
+	// 	if self.fast_object_populate(oid) {
+	// 		Ok(self.objects.get(&oid).unwrap())
+	// 	} else {
+	// 		Err(())
+	// 	}
+	// }
 
-	pub fn get_entity(&mut self, eid: EntityID) -> Result<&EntityData,()> {
-		if self.fast_entity_populate(eid) {
-			Ok(self.entities.get(&eid).unwrap())
-		} else {
-			Err(())
-		}
-	}
+	// pub fn get_entity(&mut self, eid: EntityID) -> Result<&EntityData,()> {
+	// 	if self.fast_entity_populate(eid) {
+	// 		Ok(self.entities.get(&eid).unwrap())
+	// 	} else {
+	// 		Err(())
+	// 	}
+	// }
+
+	pub fn try_get_world_prim(&self, wid: WorldID) -> Option<&WorldPrimitive> {
+        if let Some(x) = self.world_prims.get(&wid) {
+            Some(x)
+        } else {
+            self.to_acquire.lock().unwrap().world_prims.insert(wid);
+            None
+        }
+    }
+
+    pub fn try_get_world(&self, wid: WorldID) -> Option<&World> {
+        if let Some(x) = self.worlds.get(&wid) {
+            Some(x)
+        } else {
+            self.to_acquire.lock().unwrap().worlds.insert(wid);
+            None
+        }
+    }
+
+    pub fn try_get_location_prim(&self, lid: LocationID) -> Option<&LocationPrimitive> {
+        if let Some(x) = self.location_prims.get(&lid) {
+            Some(x)
+        } else {
+            self.to_acquire.lock().unwrap().location_prims.insert(lid);
+            None
+        }
+    }
+
+    pub fn try_get_location(&self, lid: LocationID) -> Option<&Location> {
+        if let Some(x) = self.locations.get(&lid) {
+            Some(x)
+        } else {
+            self.to_acquire.lock().unwrap().locations.insert(lid);
+            None
+        }
+    }
+
+    pub fn try_get_object(&self, oid: ObjectID) -> Option<&ObjectData> {
+        if let Some(x) = self.objects.get(&oid) {
+            Some(x)
+        } else {
+            self.to_acquire.lock().unwrap().objects.insert(oid);
+            None
+        }
+    }
+
+    pub fn try_get_entity(&self, eid: EntityID) -> Option<&EntityData> {
+        if let Some(x) = self.entities.get(&eid) {
+            Some(x)
+        } else {
+            self.to_acquire.lock().unwrap().entities.insert(eid);
+            None
+        }
+    }
 
 	///////////////////////////////////////////////////////////////////////
 
@@ -306,4 +384,29 @@ impl ClientResources {
 			Err(())
 		}
 	}
+
+	pub fn perform_acquisitions(&mut self) {
+        // Call periodically to acquire things that have been requested but couldn't be returned
+        // let mut t_o = ;
+        //TODO
+        {
+        	let v : Vec<WorldID>;
+        	{
+        		let mut t = self.to_acquire.lock().unwrap();
+        		v = t.world_prims.drain().collect();
+        	} 
+        	for wid in v {
+	            self.fast_world_prim_populate(wid);
+	        }
+        }
+        // for wid in t_o.worlds.drain() {
+        //     self.fast_world_populate(wid);
+        // }
+        // for lid in t_o.location_prims.drain() {
+        //     self.fast_location_prim_populate(lid);
+        // }
+        // for lid in t_o.locations.drain() {
+        //     self.fast_location_populate(lid);
+        // }
+    }
 }

@@ -8,6 +8,8 @@ use utils::traits::*;
 use ::identity::UniquePoint;
 use engine::objects::*;
 use engine::entities::*;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 #[derive(Debug,Serialize,Deserialize)]
 struct Portals {
